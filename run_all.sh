@@ -18,7 +18,9 @@ $PY -B code/q2_merge_accounting.py        | tail -2
 $PY -B code/render.py                     | tail -2
 
 echo "=========== 3/4 论文导出 ==========="
-$PY -B code/export_paper.py               | tail -2
+$PY -B code/export_paper.py               | tail -2   # 自实现 HTML（无依赖后备）
+$PY -B code/export_docx.py                | tail -2   # DOCX（内嵌图片）
+$PY -B code/export_pandoc.py              | tail -4   # pandoc：HTML(MathJax)/DOCX(原生公式)/LaTeX
 
 echo "=========== 4/4 验证套件 ==========="
 fail=0

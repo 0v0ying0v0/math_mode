@@ -34,6 +34,19 @@ bash run_all.sh
 
 ### 2.2 论文
 
+**三条导出链路并存**（各有分工）：
+
+| 链路 | 命令 | 产出 | 数学渲染 | 图片 |
+|---|---|---|---|---|
+| **pandoc（首选）** | `code/export_pandoc.py` | `论文_pandoc.html`（MathJax）/ `论文_pandoc.docx`（**Word 原生公式**）/ `论文.tex` | **原生** | 7/7 内嵌 |
+| 自实现 HTML | `code/export_paper.py` | `main.html` | Unicode 化 | 7/7 引用 |
+| 自实现 DOCX | `code/export_docx.py` | `*.docx` | Unicode 化 | 7/7 内嵌 |
+
+> pandoc 由 pip 包 `pypandoc_binary` 提供（自包含二进制，无需系统安装）。
+> 本机**无法安装 LaTeX 引擎**（conda 因 TOS 缓存权限失败、tectonic 不在 PyPI、无 texlive），
+> 故 PDF 需在有 TeX 环境的机器上对 `paper/export/pandoc/论文.tex` 执行 `xelatex` 获得。
+
+
 | 文件 | 说明 |
 |---|---|
 | `paper/main.md` | 论文源文件（Markdown，八章 + 3 个附录） |

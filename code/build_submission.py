@@ -83,9 +83,20 @@ def main():
         s = os.path.join(pex, cand)
         if os.path.exists(s):
             shutil.copy2(s, os.path.join(SUB, '论文', '论文.pdf'))
+    # pandoc 版（公式原生渲染）
+    pdir = os.path.join(pex, 'pandoc')
+    if os.path.isdir(pdir):
+        pdst = os.path.join(SUB, '论文', 'pandoc版')
+        os.makedirs(pdst, exist_ok=True)
+        for f, dst in [('论文_pandoc.html', '论文_MathJax.html'),
+                       ('论文_pandoc.docx', '论文_Word原生公式.docx'),
+                       ('论文.tex', '论文.tex')]:
+            sf = os.path.join(pdir, f)
+            if os.path.exists(sf):
+                shutil.copy2(sf, os.path.join(pdst, dst))
     shutil.copytree(os.path.join(ROOT, 'paper', 'figs'),
                     os.path.join(SUB, '论文', 'figs'), dirs_exist_ok=True)
-    print("  [论文] 论文.md / 论文.html / 论文.docx / figs（%d 张）"
+    print("  [论文] 论文.md / 论文.html / 论文.docx / pandoc版（HTML+DOCX+LaTeX）/ figs（%d 张）"
           % len(os.listdir(os.path.join(SUB, '论文', 'figs'))))
 
     # ---------- 3. 检查说明：跑全部验证套件并留存原始输出 ----------
