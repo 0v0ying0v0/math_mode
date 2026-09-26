@@ -37,14 +37,12 @@ bash run_all.sh
 | 文件 | 说明 |
 |---|---|
 | `paper/main.md` | 论文源文件（Markdown，八章 + 3 个附录） |
-| `paper/export/main.html` | **可直接提交/打印**：浏览器打开 → `⌘P` → 「存储为 PDF」 |
+| `提交/论文/论文.pdf` | **论文 PDF**：A4，22 页，包含正文与 5 张图表 |
+| `paper/export/main.html` | 打印就绪 HTML 源，可在浏览器中打印为 PDF |
 | `paper/export/山区洪涝灾害下无人机运输与通信协同优化.docx` | Word 版 |
 | `paper/figs/fig1..fig5.png` | 5 张图表 |
 
-> **关于 PDF**：本机 `Microsoft Word` 的 AppleScript 自动化被系统权限阻断（返回 −10004），
-> 且环境无 pandoc / LaTeX / Chrome。HTML 已做**打印就绪**处理（`@page A4`、分页避让、表头跨页重复、
-> 打印色彩保真），经 `tests/check_export.py` **20/20** 验证。
-> **请手动执行一次浏览器打印即可得到 PDF。** 我没有用其他手段绕过系统授权。
+> PDF 由 Edge 根据打印就绪 HTML 导出；A4、22 页。正文文本可提取，末尾附有五张图表。
 
 ### 2.3 程序
 
@@ -169,8 +167,7 @@ A 类假设 **2** 条、不可判定项 **1** 个、λ = 0.08（复核三条件�
 
 ## 六、需要你注意的三件事
 
-1. **PDF 需你手动执行一次浏览器打印**（`paper/export/main.html` → ⌘P → 存储为 PDF）。
-   若你希望我直接生成 PDF，需要你授权本会话的自动化/Word 权限，或允许我安装 pandoc。
+1. **论文 PDF 已生成**，位置为 `提交/论文/论文.pdf`；源稿为 `paper/main.md`，打印版 HTML 为 `paper/export/main.html`。
 
 2. **论文 §2.2 的 3 条运行前提（C-1/C-2/C-3）是我做的裁决**，尤其 **C-2「K 个任务组并行执行」**
    ——若应为串行，Q4 的资源需求会显著下降。
