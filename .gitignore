@@ -11,6 +11,11 @@ __pycache__/
 .DS_Store
 ._*
 
+# Office 临时/锁文件
+.~*
+~$*
+*.tmp
+
 # 编辑器
 .vscode/
 .idea/
