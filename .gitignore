@@ -33,3 +33,8 @@ __pycache__/
 _*.txt
 .playwright-mcp/
 
+# LaTeX 编译中间产物（论文.tex 经 xelatex 运行生成，不入库）
+paper/export/pandoc/*.aux
+paper/export/pandoc/*.log
+paper/export/pandoc/论文.pdf
+

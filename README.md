@@ -50,12 +50,12 @@ bash run_all.sh
 | 文件 | 说明 |
 |---|---|
 | `paper/main.md` | 论文源文件（Markdown，八章 + 3 个附录） |
-| `提交/论文/论文.pdf` | **论文 PDF**：A4，22 页，包含正文与 5 张图表 |
+| `提交/论文/论文.pdf` | **论文 PDF**：A4，40 页，包含正文与 7 张图表 |
 | `paper/export/main.html` | 打印就绪 HTML 源，可在浏览器中打印为 PDF |
 | `paper/export/山区洪涝灾害下无人机运输与通信协同优化.docx` | Word 版 |
-| `paper/figs/fig1..fig5.png` | 5 张图表 |
+| `paper/figs/fig1..fig7.png` | 7 张图表 |
 
-> PDF 由 Edge 根据打印就绪 HTML 导出；A4、22 页。正文文本可提取，末尾附有五张图表。
+> PDF 由 Edge 根据打印就绪 HTML 导出；A4、40 页。正文文本可提取，末尾附有七张图表。
 
 ### 2.3 程序
 
@@ -127,7 +127,7 @@ spec/
 | 全局验证 | `.venv/bin/python tests/run_global_verify.py` | ✅ **13/13** |
 | 账本结算 | `.venv/bin/python tests/run_settlement.py` | ✅ **7/7** |
 | 论文-结果交叉对表 | `.venv/bin/python tests/check_consistency.py` | ✅ **66/66** |
-| 导出结构验证 | `.venv/bin/python tests/check_export.py` | ✅ **20/20** |
+| 导出结构验证 | `.venv/bin/python tests/check_export.py` | ✅ **31/31** |
 
 ### 原「不可判定项」GR-1 已消除
 
@@ -206,7 +206,7 @@ A 类假设 **3** 条、不可判定项 **0** 个（P-22 已消除）、λ = 0.0
 ├── 山区洪涝灾害下无人机运输与通信协同优化.docx   题面
 ├── 结果提交模板.xlsx           提交模板
 ├── 数据/                       附件数据（DEM / 地理 / 基础参数）
-├── code/                       求解与工具（15 个模块）
+├── code/                       求解与工具（18 个模块）
 ├── spec/                       口径契约与治理（9 份）
 ├── tests/                      验证套件（8 个）
 ├── reports/                    阶段报告（11 份）

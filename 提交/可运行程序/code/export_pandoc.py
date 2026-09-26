@@ -17,6 +17,9 @@ EXPORT = os.path.join(ROOT, 'paper', 'export')
 OUTDIR = os.path.join(EXPORT, 'pandoc')
 os.makedirs(OUTDIR, exist_ok=True)
 
+# LaTeX 的 CJK 主字体按平台选择：Windows 用宋体（SimSun），macOS 用宋体-简（Songti SC）
+CJK_FONT = 'SimSun' if sys.platform == 'win32' else 'Songti SC'
+
 # pandoc 专属 CSS：A4 打印 + 中文字体 + 表格/图/公式样式
 CSS = """
 @page { size: A4; margin: 18mm 16mm; }
@@ -111,7 +114,7 @@ def main():
         '--standalone',
         '--variable', 'documentclass=article',
         '--variable', 'geometry:margin=2.2cm',
-        '--variable', 'CJKmainfont=Songti SC',
+        '--variable', 'CJKmainfont=' + CJK_FONT,
         '-V', 'fontsize=10.5pt',
         '--resource-path', PAPERDIR,
     ], 'LaTeX 源（c tex 环境可直接 xelatex 编译）'))

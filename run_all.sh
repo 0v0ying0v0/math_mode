@@ -40,4 +40,4 @@ run "导出结构验证:"          $PY -B tests/check_export.py
 
 echo
 if [ $fail -eq 0 ]; then echo "全部通过。"; else echo "存在失败项（应全绿，请检查上方输出）。"; fi
-echo "PDF：浏览器打开 paper/export/main.html → ⌘P → 存储为 PDF"
+echo "PDF：已生成 paper/export/论文.pdf（Edge 无头导出）；重生成：浏览器打开 paper/export/main.html → Ctrl+P → 存储为 PDF"

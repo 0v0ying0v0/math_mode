@@ -173,7 +173,8 @@ def inline(md: str, img_base: str) -> str:
 
     md = _html.escape(md, quote=False)
     md = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)',
-                lambda m: '<img alt="%s" src="%s">' % (m.group(1), m.group(2)), md)
+                lambda m: '<img alt="%s" src="%s">' % (m.group(1),
+                '../' + m.group(2) if m.group(2).startswith('figs/') else m.group(2)), md)
     md = re.sub(r'\[([^\]]+)\]\(([^)]+)\)',
                 lambda m: '<a href="%s">%s</a>' % (m.group(2), m.group(1)), md)
     md = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', md)
