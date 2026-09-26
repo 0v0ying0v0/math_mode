@@ -20,3 +20,6 @@ __pycache__/
 # 如需精简仓库，可取消下一行注释
 # paper/export/*.html
 # paper/export/*.docx
+
+# 部署私钥（绝不提交）
+.deploy/
