@@ -20,6 +20,83 @@ def check(cid, desc, ok, detail=""):
     print("%-8s %-58s %s %s" % (cid, desc, "PASS" if ok else "FAIL", detail))
 
 
+# ---------------------------------------------------------------------------
+# D1 口径对抗（V4.2 用）：解释 (b) 的功率与航段能耗
+# 语义自 round-1 评审以来保持不变，不得"改进"成与 (a) 同构
+# ---------------------------------------------------------------------------
+def P_b(ty, qq):    # 解释(b): P = m g / eta_up * (v_c / v_up)，量纲 W -> kW
+    return (ty['m_empty'] + qq) * C.G / ty['eta_up'] * (ty['v_cruise'] / ty['v_up']) / 1000.0
+
+
+def leg_b(ty, gg, qq, start_h, end_h):
+    """用解释(b) 的功率重算单航段"""
+    d, zc = gg['d'], gg['z_cruise']
+    h_up, h_dn = max(0.0, zc - start_h), max(0.0, zc - end_h)
+    tt = h_up / ty['v_up'] + d / ty['v_cruise'] + h_dn / ty['v_down']
+    m = ty['m_empty'] + qq
+    E = P_b(ty, qq) * (d / ty['v_cruise']) / 3600.0
+    E += m * C.G * h_up / ty['eta_up'] / 3.6e6
+    return E
+
+
+def sortie_energy(ty, gg, node, qq, o, use_b=False):
+    """O01<->node 全往返能耗：去程带货 qq、回程空载（core.energy_ok 的输入）"""
+    s_elev = node['elev'] + C.CABIN
+    if use_b:
+        return (leg_b(ty, gg, qq, o['elev'], s_elev)
+                + leg_b(ty, gg, 0.0, s_elev, o['elev']))
+    return (C.leg_time_energy(ty, gg, qq, o['elev'], s_elev)['E']
+            + C.leg_time_energy(ty, gg, 0.0, s_elev, o['elev'])['E'])
+
+
+def max_safe_payload(ty, gg, node, o, use_b=False):
+    """q* = 最大安全载荷：q ∈ [0, q_max] 二分，可行 iff 完整往返满足 core.energy_ok"""
+    lo, hi = 0.0, ty['q_max']
+    for _ in range(60):
+        qq = (lo + hi) / 2
+        if C.energy_ok(ty, sortie_energy(ty, gg, node, qq, o, use_b)):
+            lo = qq
+        else:
+            hi = qq
+    return lo
+
+
+def bottleneck_class(ty, qstar):
+    """单元格结论：q* < q_max - 0.05 kg 记能量限，否则记质量/体积限"""
+    return '能量限' if qstar < ty['q_max'] - 0.05 else '质量/体积限'
+
+
+def d1_caliber_traverse(nodes, types, z, lon, lat):
+    """D1 口径对抗全格遍历：45 个 (机型 A/B/C × 服务区 S001..S015)。
+
+    每格在两种解释下用同一二分求最大安全载荷，并按瓶颈类别给"结论"；
+    返回翻转计数、翻转清单与全格能耗差异（供 check 断言，非人工读表）。
+    """
+    o = nodes['O01']
+    rows, flips = [], []
+    sum_a = sum_b = 0.0
+    min_diff = None
+    for k in ('A', 'B', 'C'):
+        ty = types[k]
+        for i in range(1, 16):
+            sn = nodes['S%03d' % i]
+            gg = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], sn['lon'], sn['lat'])
+            qa = max_safe_payload(ty, gg, sn, o, False)
+            qb = max_safe_payload(ty, gg, sn, o, True)
+            ca, cb = bottleneck_class(ty, qa), bottleneck_class(ty, qb)
+            Ea = sortie_energy(ty, gg, sn, ty['q_max'], o, False)
+            Eb = sortie_energy(ty, gg, sn, ty['q_max'], o, True)
+            sum_a += Ea; sum_b += Eb
+            dd = 100.0 * abs(Eb - Ea) / Ea
+            min_diff = dd if min_diff is None else min(min_diff, dd)
+            rows.append((k, i, qa, qb, ca, cb, Ea, Eb, dd))
+            if ca != cb:
+                flips.append((k, i, qa, qb, ca, cb))
+    return dict(n_cells=len(rows), n_flip=len(flips), flips=flips, rows=rows,
+                sum_a=sum_a, sum_b=sum_b, min_diff_pct=min_diff,
+                diff_pct=100.0 * abs(sum_b - sum_a) / sum_a)
+
+
 def main():
     nodes = C.load_nodes(); types = C.load_transport_types()
     fleet, bat = C.load_transport_fleet()
@@ -226,11 +303,39 @@ def main():
     check("V3.3b", "关闭遮挡后该链路转为可用", (not r_blk['avail']) and r_nb['avail'], "")
 
     # V3.4 门限退化：FSPL == Lmax 时恰好切换
-    Lmax = r_nb['Lmax']
-    target_fspl = Lmax
-    D = 10 ** ((target_fspl - 32.4 - 20 * math.log10(C.F_MHZ)) / 20)   # km, 忽略高度差
-    check("V3.4a", "门限距离解析解与数值判定一致（±0.01 km）",
-          abs(D - 12.583) < 0.01, "D=%.3f km（ITU-R P.525-5 常数 32.4）" % D)
+    # 门限半径一律由 core 的链路预算反解（link_budget_limit + free_space_range_km），
+    # 再与文献口径逐项对账 —— 不再手抄 12.583，因此永不会与 core 漂移。
+    RADII = [   # (链路, 角色对, 门限 dB, 自由空间 km, 有遮挡 km)
+        ("T↔G01",  ('T', 'G01'),  122.0, 12.583, 3.979),
+        ("T↔RA",   ('T', 'RA'),   116.0,  6.307, 1.994),
+        ("RB↔G01", ('RB', 'G01'), 126.0, 19.943, 6.307),
+    ]
+    rad_bad = []
+    for nm, pair, l_ref, d_ref, do_ref in RADII:
+        L = C.link_budget_limit(*pair)
+        d_fs, d_ob = C.free_space_range_km(L), C.free_space_range_km(L, C.L_OBS)
+        if abs(L - l_ref) > 1e-9 or abs(d_fs - d_ref) > 1e-3 or abs(d_ob - do_ref) > 1e-3:
+            rad_bad.append("%s: Lmax=%.1f/%.1f free=%.4f/%.3f obs=%.4f/%.3f" %
+                           (nm, L, l_ref, d_fs, d_ref, d_ob, do_ref))
+        print("        %-7s Lmax=%3.0f dB -> 自由空间 %.3f km, 有遮挡 %.3f km" %
+              (nm, L, d_fs, d_ob))
+    # 反解半径与数值判定闭环：fspl(D) == Lmax，且 link_available 在 D 处恰好切换
+    L_tg = C.link_budget_limit('T', 'G01')
+    D = C.free_space_range_km(L_tg)
+    z_flat_abs = z * 0 - 10000.0            # 极低地形 -> 无遮挡，只余自由空间项
+    gw0 = (o['lon'], o['lat'], 0.0, 'G01')
+    av_lo = C.link_available(z_flat_abs, lon, lat,
+                             (o['lon'], o['lat'] + 0.999 * D * 1000.0 / C.DEG2M, 0.0, 'T'), gw0)
+    av_hi = C.link_available(z_flat_abs, lon, lat,
+                             (o['lon'], o['lat'] + 1.001 * D * 1000.0 / C.DEG2M, 0.0, 'T'), gw0)
+    closure = (abs(C.fspl_db(D) - L_tg) < 1e-6
+               and abs(av_lo['Lmax'] - r_nb['Lmax']) < 1e-9
+               and av_lo['avail'] and not av_hi['avail'])
+    check("V3.4a", "门限半径由 core 反解并对账（3 链路 ±0.001 km；fspl 闭环）",
+          (not rad_bad) and closure,
+          "反解%s；闭环 %s（D=%.3f km）" %
+          ("一致" if not rad_bad else "不一致: " + "; ".join(rad_bad),
+           "OK(fspl(D)==Lmax, 0.999D 可用/1.001D 不可用)" if closure else "失败", D))
 
     # ================= V4 灵敏度 =================
     print("\n=== V4 灵敏度/稳健性 ===")
@@ -296,60 +401,50 @@ def main():
     check("V4.1c", "临界 rho 已定位（Q1 第(4)问关键量）", len(crit) > 0,
           "%d 个组合在 rho≤60%% 内受约束" % len(crit))
 
-    # V4.2 D1 口径对抗 —— 关键是"结论是否翻转"，而非"数字是否相同"
-    print("  V4.2a D1 口径对抗（(a) 由标准航程反推 vs (b) 由爬升效率外推）")
+    # V4.2 D1 口径对抗 —— 判据是"结论（瓶颈类别）是否翻转"，而非"数字是否相同"
+    # 只探单格证明不了任何事：A@S003 在两种读法下都由质量上限束缚，结论不可能翻转。
+    # 故遍历全部 45 个 (机型 × 服务区) 单元格，逐格给出 q* 与瓶颈类别。
+    print("  V4.2a D1 口径对抗（(a) 由标准航程反推 vs (b) 由爬升效率外推），全 45 格遍历")
     t = types['A']
     g = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], nodes['S003']['lon'], nodes['S003']['lat'])
     q = t['q_max']
     E_a = C.leg_time_energy(t, g, q, o['elev'], nodes['S003']['elev'] + C.CABIN)
-
-    def P_b(ty, qq):    # 解释(b): P = m g / eta_up * (v_c / v_up)，量纲 W -> kW
-        return (ty['m_empty'] + qq) * C.G / ty['eta_up'] * (ty['v_cruise'] / ty['v_up']) / 1000.0
-
-    def leg_b(ty, gg, qq, start_h, end_h):
-        """用解释(b) 的功率重算单航段"""
-        d, zc = gg['d'], gg['z_cruise']
-        h_up, h_dn = max(0.0, zc - start_h), max(0.0, zc - end_h)
-        tt = h_up / ty['v_up'] + d / ty['v_cruise'] + h_dn / ty['v_down']
-        m = ty['m_empty'] + qq
-        E = P_b(ty, qq) * (d / ty['v_cruise']) / 3600.0
-        E += m * C.G * h_up / ty['eta_up'] / 3.6e6
-        return E
-
+    # 单格示例（S003/A）：仅说明两口径"数字不同"，不作为结论证据
     P2 = P_b(t, q)
     E_hor_b = P2 * (g['d'] / t['v_cruise']) / 3600.0
     E_tot_a = E_a['E'] + C.leg_time_energy(t, g, 0.0, nodes['S003']['elev'] + C.CABIN, o['elev'])['E']
     E_tot_b = leg_b(t, g, q, o['elev'], nodes['S003']['elev'] + C.CABIN) + \
               leg_b(t, g, 0.0, nodes['S003']['elev'] + C.CABIN, o['elev'])
-    print("        (a) P=%.3f kW, E_hor=%.4f kWh | (b) P=%.3f kW, E_hor=%.4f kWh" %
+    print("        示例 S003/A: (a) P=%.3f kW, E_hor=%.4f kWh | (b) P=%.3f kW, E_hor=%.4f kWh" %
           (E_a['P_hor'], E_a['E_hor'], P2, E_hor_b))
-    print("        架次总能耗 (a)=%.4f kWh, (b)=%.4f kWh, 相对差异 %.1f%%" %
+    print("        示例 S003/A 架次总能耗 (a)=%.4f kWh, (b)=%.4f kWh, 相对差异 %.1f%%" %
           (E_tot_a, E_tot_b, 100 * abs(E_tot_b - E_tot_a) / E_tot_a))
 
-    # 结论稳健性：两口径下的最大安全载荷（S003）是否改变 —— 这才是"结论"
-    def qstar(ty, gg, use_b=False):
-        lo, hi = 0.0, ty['q_max']
-        for _ in range(60):
-            qq = (lo + hi) / 2
-            if use_b:
-                E = leg_b(ty, gg, qq, o['elev'], nodes['S003']['elev'] + C.CABIN) + \
-                    leg_b(ty, gg, 0.0, nodes['S003']['elev'] + C.CABIN, o['elev'])
-            else:
-                E = C.leg_time_energy(ty, gg, qq, o['elev'], nodes['S003']['elev'] + C.CABIN)['E'] + \
-                    C.leg_time_energy(ty, gg, 0.0, nodes['S003']['elev'] + C.CABIN, o['elev'])['E']
-            if C.energy_ok(ty, E):
-                lo = qq
-            else:
-                hi = qq
-        return lo
+    D1 = d1_caliber_traverse(nodes, types, z, lon, lat)
+    print("        %-4s %-7s %9s %9s  %-9s %-9s" %
+          ("机型", "服务区", "q*_a", "q*_b", "类别(a)", "类别(b)"))
+    for k, i, qa_i, qb_i, ca_i, cb_i, _ea, _eb, _dd in D1['rows']:
+        print("        %-4s S%03d   %9.2f %9.2f  %-9s %-9s%s" %
+              (k, i, qa_i, qb_i, ca_i, cb_i, "  <== 翻转" if ca_i != cb_i else ""))
+    print("        翻转 %d/%d 格：%s" %
+          (D1['n_flip'], D1['n_cells'],
+           " ".join("%s@S%03d(%s->%s, q* %.2f->%.2f)" %
+                    (f[0], f[1], f[4], f[5], f[2], f[3]) for f in D1['flips']) or "无"))
+    print("        全格总能耗差异 %.1f%%（ΣE(b)=%.2f vs ΣE(a)=%.2f kWh；单格最小差异 %.1f%%）" %
+          (D1['diff_pct'], D1['sum_b'], D1['sum_a'], D1['min_diff_pct']))
 
-    qa = qstar(t, g, False); qb = qstar(t, g, True)
-    print("        S003 最大安全载荷：(a) q*=%.2f kg, (b) q*=%.2f kg (Q_max=%.0f)" % (qa, qb, t['q_max']))
-    check("V4.2a", "D1 口径对抗已量化（差异已记录，非静默）",
-          True, "总能耗差异 %.1f%%，q* 差异 %.2f kg" % (100 * abs(E_tot_b - E_tot_a) / E_tot_a, abs(qb - qa)))
-    check("V4.2b", "D1 两口径下【最大安全载荷结论】不翻转（均被几何上限约束）",
-          abs(qa - t['q_max']) < 0.01 and abs(qb - t['q_max']) < 0.01,
-          "(a) q*=%.2f, (b) q*=%.2f vs 几何上限 %.0f kg" % (qa, qb, t['q_max']))
+    check("V4.2a", "D1 口径对抗已全格量化（45 格遍历，两口径逐格均有差异）",
+          D1['n_cells'] == 45 and D1['min_diff_pct'] > 0.0,
+          "%d 格总差异 %.1f%%，单格最小 %.1f%%，翻转 %d 格" %
+          (D1['n_cells'], D1['diff_pct'], D1['min_diff_pct'], D1['n_flip']))
+    bad_flip = [f for f in D1['flips'] if f[4] != '能量限']
+    check("V4.2b", "翻转仅限 (a) 口径的能量限格（质量/体积限格结论不翻转）",
+          D1['n_flip'] > 0 and not bad_flip,
+          "翻转 %d 格：%s%s" %
+          (D1['n_flip'],
+           " ".join("%s@S%03d" % (f[0], f[1]) for f in D1['flips']) or "无",
+           "" if not bad_flip else "；越界(非能量限)翻转：" +
+           " ".join("%s@S%03d" % (f[0], f[1]) for f in bad_flip)))
 
     # V4.3 LOS 采样密度对抗
     gw = C.gateway_endpoint(nodes)

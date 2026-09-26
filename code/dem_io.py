@@ -71,18 +71,26 @@ def load_dem(path=DEM_PATH):
     return z, lon, lat
 
 
-def bilinear(z, lon, lat, qlon, qlat):
-    """双线性插值采样高程；越界返回 nan。"""
+def bilinear_arr(z, lon, lat, qlon, qlat):
+    """双线性插值采样高程（**数组**版本）；任一查询点越界则返回 nan。
+
+    这是全工程**唯一**的 DEM 点高程口径（G-02）：标量调用走 ``bilinear``，
+    数组调用（如 ``comm_geo.RelayGrid`` 的候选中继格点）走本函数，两者逐位相同。
+    """
     fc = (np.asarray(qlon, float) - lon[0]) / (lon[1] - lon[0])
     fr = (lat[0] - np.asarray(qlat, float)) / (lat[0] - lat[1])
     if np.any(fc < 0) or np.any(fc > lon.size - 1) or np.any(fr < 0) or np.any(fr > lat.size - 1):
-        return np.nan
+        return np.full(np.broadcast(fc, fr).shape, np.nan)
     c0 = np.floor(fc).astype(int); r0 = np.floor(fr).astype(int)
     c1 = np.minimum(c0 + 1, lon.size - 1); r1 = np.minimum(r0 + 1, lat.size - 1)
     tc = fc - c0; tr = fr - r0
-    v = ((1 - tc) * (1 - tr) * z[r0, c0] + tc * (1 - tr) * z[r0, c1]
-         + (1 - tc) * tr * z[r1, c0] + tc * tr * z[r1, c1])
-    return float(v)
+    return ((1 - tc) * (1 - tr) * z[r0, c0] + tc * (1 - tr) * z[r0, c1]
+            + (1 - tc) * tr * z[r1, c0] + tc * tr * z[r1, c1])
+
+
+def bilinear(z, lon, lat, qlon, qlat):
+    """双线性插值采样高程（标量版本）；越界返回 nan。"""
+    return float(bilinear_arr(z, lon, lat, qlon, qlat))
 
 
 if __name__ == '__main__':

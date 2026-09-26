@@ -23,30 +23,8 @@ OUT = os.path.join(ROOT, 'out'); REP = os.path.join(ROOT, 'reports')
 
 
 # ---------------------------------------------------------------------------
-def build_jobs(nodes, types, boxes, z, lon, lat):
-    """由 Q1 组批生成待调度的架次任务（含逐箱明细、时限）。"""
-    q1 = pd.read_csv(os.path.join(OUT, 'Q1_单点组批.csv'))
-    bmap = {r['货箱编号']: r for _, r in boxes.iterrows()}
-    o = nodes['O01']
-    jobs = []
-    for r in q1.itertuples():
-        i = int(r.服务区编号[1:]); s = nodes['S%03d' % i]
-        ty = types[r.机型编号]
-        boxids = str(r.货箱编号列表).split(';')
-        g = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], s['lon'], s['lat'])
-        f = C.leg_time_energy(ty, g, r['总质量（kg）'], o['elev'], s['elev'] + C.CABIN)
-        b = C.leg_time_energy(ty, g, 0.0, s['elev'] + C.CABIN, o['elev'])
-        # 逐箱交付时刻 = 到达服务区并可开始交接的时刻（含前面箱的交接时间）
-        hand0 = ty['t_hand_base']
-        boxt = {}
-        off = ty['t_prep'] + ty['t_box'] * len(boxids) + f['t'] + hand0
-        for bi, bid in enumerate(boxids):
-            boxt[bid] = off + ty['t_hand_box'] * bi
-        jobs.append(dict(jid=r.架次编号, site=i, type=r.机型编号, n=len(boxids),
-                         q=r['总质量（kg）'], vol=r['总体积（m³）'], E=r['架次能耗（kWh）'],
-                         dur=r['往返时间（s）'], t_out=f['t'], boxes=boxids, boxt=boxt,
-                         box_rows={bid: bmap[bid] for bid in boxids}))
-    return jobs
+# build_jobs() 已删除：死代码且列名过期（itertuples() + 中文列名会抛
+# TypeError: tuple indices must be integers），活的任务构造器是下方的 build_q2()。
 
 
 def deadlines(jobs):
@@ -69,7 +47,14 @@ def deadlines(jobs):
 
 
 # ---------------------------------------------------------------------------
-def schedule(jobs, fleet, bat, types, priority='first_then_spt'):
+def _ceil_q(x):
+    """向整数秒取整（向上）。T-5.3 要求所有时刻为整数秒："四舍五入后重算，
+    避免舍入后不可行"——此处统一**向上取整**再重算整条时序链，故取整只会把
+    时刻推后、不会把物理上不可行的排程"舍入成"可行。"""
+    return float(math.ceil(x - 1e-9))
+
+
+def schedule(jobs, fleet, bat, types, priority='first_then_spt', quantize=True):
     """把架次分派给实体机并排定时刻（机型内独立，D11）。
 
     事件驱动列表调度：
@@ -77,6 +62,8 @@ def schedule(jobs, fleet, bat, types, priority='first_then_spt'):
       - 按优先级顺序取任务，放入使开始时刻最小的组合
       - 优先级 priority='first_then_spt'：首批任务按截止时间升序优先；其余按时长升序
       - 'edd'：全部按（首批截止, 期望时间）升序，最小化迟延
+      - quantize=True：每次决策把开始/结束时刻向上取整到整数秒（T-5.3），
+        实体机与电池的释放时刻随之重算，故时序链在取整后仍然可行。
     """
     by_type = defaultdict(list)
     for j in jobs:
@@ -107,10 +94,16 @@ def schedule(jobs, fleet, bat, types, priority='first_then_spt'):
                     if best is None or st < best[0] - 1e-9:
                         best = (st, u, b)
             st, u, b = best
+            if quantize:
+                st = _ceil_q(st)
             en = st + j['dur']
+            if quantize:
+                en = _ceil_q(en)
             uav_free[u] = en
             soc = max(0.0, 1.0 - j['E'] / ty['E_use'])
-            bat_free[b] = en + C.t_charge(soc, bat[tp]['T_full'])
+            bat_free[b] = (en + C.t_charge(soc, bat[tp]['T_full']))
+            if quantize:
+                bat_free[b] = _ceil_q(bat_free[b])
             sched[j['jid']] = dict(uav=u, bat=b, t0=st, t1=en)
     return sched
 
@@ -290,9 +283,9 @@ def main():
         s = sched[j['jid']]
         rows.append({
             '架次编号': j['jid'], '无人机编号': s['uav'], '机型编号': j['type'],
-            '电池编号': s['bat'], '开始时刻（s）': round(s['t0'], 1),
+            '电池编号': s['bat'], '开始时刻（s）': s['t0'],
             '访问服务区顺序': 'S%03d' % j['site'],
-            '返回O01时刻（s）': round(s['t1'], 1),
+            '返回O01时刻（s）': s['t1'],
             '架次能耗（kWh）': round(j['E'], 6),
         })
     q2 = pd.DataFrame(rows).sort_values('开始时刻（s）')
@@ -304,7 +297,7 @@ def main():
         for b in j['boxes']:
             brows.append({'货箱编号': b, '架次编号': j['jid'],
                           '服务区编号': 'S%03d' % j['site'],
-                          '交付完成时刻（s）': round(s['t0'] + j['boxt'][b], 1)})
+                          '交付完成时刻（s）': _ceil_q(s['t0'] + j['boxt'][b])})
     q2b = pd.DataFrame(brows)
     q2b.to_csv(os.path.join(OUT, 'Q2_逐箱交付.csv'), index=False, encoding='utf-8-sig')
 

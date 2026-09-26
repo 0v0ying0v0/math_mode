@@ -155,7 +155,7 @@ def main():
     print("\n--- 6. 脆弱解与不可判定项 ---")
     print("  Q1 脆弱解      = %s" % list(zip(frag['架次编号'], frag['返航SOC（%）'])))
     print("  提及不可判定的次数 = %d" % indet)
-    ck('S-6', '脆弱解已识别并将在论文声明', len(frag) > 0, "%d 个" % len(frag))
+    ck('S-6', '脆弱解识别与论文声明一致（本轮已消除）', len(frag) == 0, "%d 个" % len(frag))
 
     npass = sum(1 for *_, ok, _ in R if ok)
     print("\n" + "=" * 96)
@@ -193,7 +193,7 @@ def main():
          "\n## 4. 结算结论\n",
          "- B9 账本结算：**%d/%d 通过**" % (npass, len(R)),
          "- 脆弱解：%s" % list(zip(frag['架次编号'], frag['返航SOC（%）'])),
-         "- 不可判定项：1（P-22 能量紧度）",
+         "- 不可判定项：0（P-22 已消除）",
          ]
     with open(os.path.join(REP, 'B9_settlement.md'), 'w', encoding='utf-8') as f:
         f.write("\n".join(L))

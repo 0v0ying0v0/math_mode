@@ -351,13 +351,16 @@ def main():
     # DOCX 由 code/export_docx.py 生成（textutil 不内嵌图片，会丢失全部插图，故不用）
     print("DOCX：请运行 code/export_docx.py（内嵌图片版）")
 
-    # PDF via qlmanage（无 Chrome/LaTeX 时的回退）
-    pdf = os.path.join(OUTDIR, '论文.pdf')
-    r2 = subprocess.run(['qlmanage', '-t', '-s', '1600', '-o', OUTDIR, html_path],
-                        capture_output=True, text=True)
-    cand = os.path.join(OUTDIR, os.path.basename(html_path) + '.png')
-    if os.path.exists(cand):
-        print("预览图 ->", cand)
+    # PDF via qlmanage（无 Chrome/LaTeX 时的回退；qlmanage 为 macOS 专属，非 macOS 跳过）
+    if sys.platform == 'darwin':
+        pdf = os.path.join(OUTDIR, '论文.pdf')
+        r2 = subprocess.run(['qlmanage', '-t', '-s', '1600', '-o', OUTDIR, html_path],
+                            capture_output=True, text=True)
+        cand = os.path.join(OUTDIR, os.path.basename(html_path) + '.png')
+        if os.path.exists(cand):
+            print("预览图 ->", cand)
+    else:
+        print("PDF：非 macOS，跳过 qlmanage（PDF 走 pandoc/浏览器打印路径）")
     return html_path
 
 

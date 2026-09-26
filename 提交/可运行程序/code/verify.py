@@ -31,11 +31,17 @@ def ck(g, cid, desc, ok, detail=""):
 # ---------------------------------------------------------------------------
 def load_all():
     d = {}
-    for f, k in [('Q1_单点组批.csv', 'q1'), ('Q3_中继架次.csv', 'q3r'),
-                 ('Q3_通信保障.csv', 'q3c'), ('Q4_分区配置.csv', 'q4'),
-                 ('Q4_方案比较.csv', 'q4cmp')]:
+    for f, k in [('Q1_单点组批.csv', 'q1'),
+                 ('Q2_运输架次.csv', 'q2'), ('Q2_逐箱交付.csv', 'q2b'),
+                 ('Q3_中继架次.csv', 'q3r'), ('Q3_通信保障.csv', 'q3c'),
+                 ('Q3_逐箱交付.csv', 'q3b'), ('Q3_架次延迟.csv', 'q3d'),
+                 ('Q4_分区配置.csv', 'q4'), ('Q4_方案比较.csv', 'q4cmp')]:
         p = os.path.join(OUT, f)
         d[k] = pd.read_csv(p) if os.path.exists(p) else None
+    import json
+    for f, k in [('Q2_summary.json', 'q2s'), ('Q3_summary.json', 'q3s')]:
+        p = os.path.join(OUT, f)
+        d[k] = json.load(open(p, encoding='utf-8')) if os.path.exists(p) else None
     return d
 
 
@@ -133,13 +139,31 @@ def group_B(D, nodes, types, boxes, z, lon, lat):
 # ================= C 时序与资源 =================
 def group_C(D, nodes, types, boxes, z, lon, lat):
     print("\n=== C 时序与资源 ===")
-    q1, q3c, q3r = D['q1'], D['q3c'], D['q3r']
-    if q1 is None:
+    q1, q2, q2b = D['q1'], D['q2'], D['q2b']
+    q3c, q3r = D['q3c'], D['q3r']
+    q3b, q3d, q2s, q3s = D['q3b'], D['q3d'], D['q2s'], D['q3s']
+    if q2 is None or q3r is None:
+        ck('C', 'C-0', 'Q2/Q3 结果表存在', False, "缺 Q2_运输架次.csv 或 Q3_中继架次.csv")
         return
-    # 时限：Q1 无时限要求（纯运输能力问题）；Q3 继承 Q1，同样不含实体机调度
+    # 时限口径：Q3 继承 **Q2 的 37 个并行运输架次**（不再继承 Q1 的 18 个串行架次）；
+    # 箱的时限属性一律取自 data/（附件箱清单 / 需求表），交付时刻取自 out/ 结果表。
     bx = boxes.set_index('货箱编号')
     first = bx[bx['是否首批保障'] == '是']
-    ck('C', 'C-1', '首批保障箱数 = 30（附件一致）', len(first) == 30, "%d" % len(first))
+    med = bx[bx['物资类型'] == '医疗物资']
+    dem = C.load_demand()
+    exp_first = int(dem['首批必须送达箱数'].sum())
+    exp_med = int(dem[dem['物资类型'] == '医疗物资']['总需求箱数'].sum())
+    ck('C', 'C-1', '首批保障箱数 = 30（与附件"首批必须送达"合计一致）',
+       len(first) == exp_first == 30, "%d 箱 / 附件合计 %d" % (len(first), exp_first))
+    # 硬时限架次（含首批保障箱或医疗箱的 Q2 架次）由附件重算，供 C-12/C-15 复用
+    hard = set()
+    if q2b is not None:
+        jof = {r['货箱编号']: r['架次编号'] for _, r in q2b.iterrows()}
+        for _, r in boxes.iterrows():
+            b = r['货箱编号']
+            if b in jof and (str(r['是否首批保障']) == '是'
+                             or str(r['物资类型']) == '医疗物资'):
+                hard.add(jof[b])
     # 中继资源
     if q3r is not None and len(q3r):
         tyR = C.load_relay_types()[0]
@@ -147,13 +171,20 @@ def group_C(D, nodes, types, boxes, z, lon, lat):
         ck('C', 'C-2', '中继架次均满足返航电量下限（T-3.7）',
            bool((E <= (1 - tyR['rho']) * tyR['E_use']).all()),
            "max %.4f / 限 %.4f kWh" % (E.max(), (1 - tyR['rho']) * tyR['E_use']))
-        # 离地高度
+        # 离地高度（独立口径：把交付表里的 (经度, 纬度, 海拔) 三个数拿去在 DEM 上复算）
         ok_h = True
+        agl = []
         for _, r in q3r.iterrows():
             zg = bilinear(z, lon, lat, r['悬停经度（°）'], r['悬停纬度（°）'])
-            if not np.isnan(zg) and (r['悬停海拔（m）'] - zg) > C.RELAY_HMAX + 1e-6:
+            if np.isnan(zg):
                 ok_h = False
-        ck('C', 'C-3', '中继悬停离地高度 ≤ 300 m（T-3.6/D8）', ok_h, "")
+                continue
+            agl.append(r['悬停海拔（m）'] - zg)
+            if agl[-1] > C.RELAY_HMAX + 1e-6:
+                ok_h = False
+        ck('C', 'C-3', '中继悬停离地高度 ≤ 300 m（T-3.6/D8）', ok_h,
+           "max AGL=%.6f m / 限 %.1f m（%d 架次）"
+           % (max(agl) if agl else float('nan'), C.RELAY_HMAX, len(agl)))
         inb = ((q3r['悬停经度（°）'] >= lon[0]) & (q3r['悬停经度（°）'] <= lon[-1]) &
                (q3r['悬停纬度（°）'] >= lat[-1]) & (q3r['悬停纬度（°）'] <= lat[0]))
         ck('C', 'C-4', '中继悬停位置在 DEM 覆盖内（T-3.5）', bool(inb.all()), "")
@@ -185,72 +216,205 @@ def group_C(D, nodes, types, boxes, z, lon, lat):
     else:
         ck('C', 'C-2', '中继架次表非空', False, "空表")
 
+    # ---- 继承口径：Q3 运输侧 = Q2 的 37 个并行架次（不是 Q1 的 18 个串行架次）----
+    n_q2 = len(q2)
+    n_q3 = q3c['运输架次编号'].nunique() if q3c is not None else 0
+    same = (q3c is not None and set(q3c['运输架次编号']) == set(q2['架次编号']))
+    ck('C', 'C-8', 'Q3 运输架次集合 == Q2 架次集合（37 个，非 Q1 的 18 个）',
+       n_q2 == 37 and same,
+       "Q2 %d 架次 / Q3 通信保障 %d 架次 / 集合一致 %s" % (n_q2, n_q3, same))
+    e2 = float(q2['架次能耗（kWh）'].sum())
+    e1 = float(q1['架次能耗（kWh）'].sum()) if q1 is not None else float('nan')
+    e3 = None if q3s is None else float(q3s['运输能耗kWh'])
+    ok_e = e3 is not None and abs(e3 - e2) <= 1e-4 and abs(e3 - e1) > 1e-4
+    ck('C', 'C-9', 'Q3 运输能耗 == Q2 逐架次能耗之和（≤1e-4 kWh，非 Q1 口径）', ok_e,
+       "Q2 合计 %.4f / Q3 运输 %.4f / Q1 参考 %.4f kWh" % (e2, -1.0 if e3 is None else e3, e1))
+    # 中继分配与"零中断"汇总（数值来源 = out/Q3_summary.json，结构由 C-8/C-9 独立复核）
+    if q3s is None:
+        ck('C', 'C-10', 'Q3 通信中断样本数 == 0（T-3.2）', False, "缺 out/Q3_summary.json")
+        ck('C', 'C-11', 'Q3 无解/无法覆盖样本数 == 0', False, "缺 out/Q3_summary.json")
+    else:
+        ck('C', 'C-10', 'Q3 通信中断样本数 == 0（T-3.2）',
+           int(q3s['通信中断样本数']) == 0,
+           "中断 %d / 需中继 %d 全部由中继保障（%d）" % (
+               int(q3s['通信中断样本数']), int(q3s['需中继样本数']),
+               int(q3s['中继保障样本数'])))
+        ck('C', 'C-11', 'Q3 无解/无法覆盖样本数 == 0',
+           int(q3s['无解样本数']) == 0 and int(q3s['无法覆盖样本数']) == 0
+           and int(q3s['需中继样本数']) == int(q3s['中继保障样本数']),
+           "无解 %d / 无法覆盖 %d / 需中继 %d == 保障 %d" % (
+               int(q3s['无解样本数']), int(q3s['无法覆盖样本数']),
+               int(q3s['需中继样本数']), int(q3s['中继保障样本数'])))
+    # 硬时限架次数：附件箱属性 → Q2 逐箱交付表 → 去重架次（独立重算）
+    ck('C', 'C-12', '硬时限架次数（独立重算）== summary',
+       q2b is not None and len(hard) == 15
+       and (q3s is None or int(q3s['硬时限架次数']) == len(hard)),
+       "重算 %d 架 / summary %s" % (len(hard),
+                                   "—" if q3s is None else int(q3s['硬时限架次数'])))
+
+    # ---- M12：时限逐箱独立复算 ----
+    # 箱属性（是否首批 / 首批截止 / 物资类型 / 期望送达）取自 data/ 附件箱清单，
+    # 交付时刻取自 out/Q3_逐箱交付.csv；据此独立重算首批箱与医疗箱的超限数，
+    # 并与 out/Q3_summary.json 的计数对账。
+    if q3b is None:
+        ck('C', 'C-13', '首批保障箱按时送达（逐箱独立复算，M12）', False,
+           "缺 out/Q3_逐箱交付.csv（Q3 重跑中），无法独立复算")
+        ck('C', 'C-14', '医疗物资箱按时送达（逐箱独立复算，M12）', False,
+           "缺 out/Q3_逐箱交付.csv（Q3 重跑中），无法独立复算")
+    else:
+        tdel = {r['货箱编号']: float(r['交付完成时刻（s）']) for _, r in q3b.iterrows()}
+        miss = [b for b in boxes['货箱编号'] if b not in tdel]
+        v_first = v_med = 0
+        for _, r in boxes.iterrows():
+            b = r['货箱编号']
+            if b not in tdel:
+                continue
+            t = tdel[b]
+            if str(r['是否首批保障']) == '是' and \
+               t > float(r['首批截止时间（s）']) + 1e-6:
+                v_first += 1
+            if str(r['物资类型']) == '医疗物资' and \
+               t > float(r['期望送达时间（s）']) + 1e-6:
+                v_med += 1
+        s_first = None if q3s is None else int(q3s['首批截止违反数'])
+        s_med = None if q3s is None else int(q3s['医疗期望违反数'])
+        ck('C', 'C-13', '首批保障箱按时送达（逐箱独立复算，M12）',
+           v_first == 0 and s_first == v_first and not miss,
+           "违反 %d/%d 箱；summary 违反 %s；未覆盖箱 %d" % (
+               v_first, len(first), "—" if s_first is None else s_first, len(miss)))
+        ck('C', 'C-14', '医疗物资箱按时送达（逐箱独立复算，M12）',
+           v_med == 0 and s_med == v_med and len(med) == exp_med and not miss,
+           "违反 %d/%d 箱（附件合计 %d）；summary 违反 %s；未覆盖箱 %d" % (
+               v_med, len(med), exp_med, "—" if s_med is None else s_med, len(miss)))
+
+    # ---- 逐架次延迟表自洽（Q2 起点 + 后推量 = 联合起点；硬时限行超限判定一致）----
+    if q3d is None:
+        ck('C', 'C-15', 'Q3 架次延迟表自洽（后推量/硬时限/超限）', False,
+           "缺 out/Q3_架次延迟.csv（Q3 重跑中）")
+    else:
+        n_hard = int((q3d['硬时限'] == '是').sum())
+        n_over = int((q3d['是否超限'] == '是').sum())
+        bad_d = 0
+        for _, r in q3d.iterrows():
+            if abs((r['联合开始时刻（s）'] - r['Q2开始时刻（s）'])
+                   - r['后推量（s）']) > 1e-6:
+                bad_d += 1
+            lim = r['时限余量（s）']
+            if r['硬时限'] == '是' and pd.notna(lim):
+                exp = '是' if r['后推量（s）'] - float(lim) > 1e-9 else '否'
+                if r['是否超限'] != exp:
+                    bad_d += 1
+        ck('C', 'C-15', 'Q3 架次延迟表自洽（后推量/硬时限/超限）',
+           bad_d == 0 and n_hard == len(hard) and n_over == 0
+           and (q3s is None or (int(q3s['硬时限架次数']) == n_hard
+                                and int(q3s['硬时限架次超限数']) == n_over)),
+           "硬时限行 %d（附件重算 %d）/ 超限行 %d / 不自洽 %d" % (
+               n_hard, len(hard), n_over, bad_d))
+
 
 # ================= D 通信 =================
 def group_D(D, nodes, types, boxes, z, lon, lat):
     print("\n=== D 通信（零中断，T-3.2）===")
+    q2, q2b = D['q2'], D['q2b']
     q3r, q3c = D['q3r'], D['q3c']
-    if q3r is None or q3c is None or not len(q3c):
-        ck('D', 'D-1', '通信保障表非空', False, "空表")
+    if q2 is None or q2b is None or q3r is None or q3c is None or not len(q3c):
+        ck('D', 'D-1', '通信保障表非空', False, "缺 Q2/Q3 结果表")
         return
     gw = C.gateway_endpoint(nodes)
-    # 从结果文件重建每个运输架次的采样（用 Q1 箱集合 + Q3 起点）
-    q1 = D['q1']
-    wmap = {r['货箱编号']: (float(r['单箱质量（kg）']), float(r['单箱体积（m³）']))
-            for _, r in boxes.iterrows()}
-    start = {}
+    o = nodes['O01']
+    # 从结果文件重建每个运输架次的采样。
+    # Q3 继承 **Q2 的 37 个并行架次**：机型与访问服务区顺序取自 out/Q2_运输架次.csv，
+    # 架次箱数取自 out/Q2_逐箱交付.csv，架次起点取自 out/Q3_通信保障.csv 的最早阶段时刻
+    # （= Q2 起点 + 联合后推量，故无需读 Q1 单点组批表）。
+    nbox = {sid: int(n) for sid, n in
+            q2b.groupby('架次编号')['货箱编号'].count().items()}
+    t0 = {}
     for sid, g in q3c.groupby('运输架次编号'):
-        row = q1[q1['架次编号'] == sid].iloc[0]
-        start[sid] = g['开始时刻（s）'].min() - types[row['机型编号']]['t_prep']
+        if sid in set(q2['架次编号']):
+            t0[sid] = float(g['开始时刻（s）'].min())
+    # 通信判定步长：取 Q3 自报口径（out/Q3_summary.json 的 通信判定步长s，缺省 60 s）。
+    # 判定与该口径同网格；亚步（1/4 步长）连续性另由 D-5 量化。
+    dt = 60.0
+    if D['q3s'] is not None and '通信判定步长s' in D['q3s']:
+        dt = float(D['q3s']['通信判定步长s'])
     tol = 1.0
-    tot = bad = rel = 0
-    badlist = []
-    for _, r in q1.iterrows():
-        sid = r['架次编号']
-        if sid not in start:
-            continue
-        ty = types[r['机型编号']]
-        i = int(r['服务区编号'][1:]); s = nodes['S%03d' % i]; o = nodes['O01']
-        zc = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], s['lon'], s['lat'])['z_cruise']
-        zt = s['elev'] + C.CABIN
-        off = start[sid]
-        # 重建关键采样点（与求解器独立：直接按阶段枚举）
+
+    def track(r, factor):
+        """按阶段枚举采样点（绝对时基）。factor=1 时与 Q3 自报判定步长同网格。"""
+        ty = types[str(r['机型编号'])]
+        sites = [int(s.strip()[1:]) for s in
+                 str(r['访问服务区顺序']).split(';') if s.strip()]
+        nb = nbox.get(r['架次编号'], 1)
+        t_hand = ty['t_hand_base'] + ty['t_hand_box'] * nb
+        cur = (o['lon'], o['lat'], o['elev'])
+        off = t0[r['架次编号']] + ty['t_prep']     # 架次起点 → 实际起飞时刻
         pts = []
-        h_up = max(0.0, zc - o['elev']); t_up = h_up / ty['v_up']
-        for f in np.linspace(0, 1, 6):
-            pts.append((off + ty['t_prep'] + t_up * f, o['lon'], o['lat'], o['elev'] + h_up * f))
-        d = C.horizontal_m(o['lon'], o['lat'], s['lon'], s['lat'])
-        t_cr = d / ty['v_cruise']
-        for f in np.linspace(0, 1, 8):
-            pts.append((off + ty['t_prep'] + t_up + t_cr * f,
-                        o['lon'] + (s['lon'] - o['lon']) * f,
-                        o['lat'] + (s['lat'] - o['lat']) * f, zc))
-        n_box = len(str(r['货箱编号列表']).split(';'))
-        t_hand = ty['t_hand_base'] + ty['t_hand_box'] * n_box
-        th0 = off + ty['t_prep'] + t_up + t_cr + max(0.0, zc - zt) / ty['v_down']
-        for f in np.linspace(0, 1, 5):
-            pts.append((th0 + t_hand * f, s['lon'], s['lat'], zt))
-        tot += len(pts)
-        for (T, lo, la, alt) in pts:
-            if C.link_available(z, lon, lat, (lo, la, alt, 'T'), gw)['avail']:
+
+        def seg(ts, dur, p0, p1, h0, h1, hold):
+            n = max(1, int(math.ceil(dur / dt))) * factor
+            for f in np.linspace(0.0, 1.0, n + 1):
+                x = p0[0] if hold else p0[0] + (p1[0] - p0[0]) * f
+                y = p0[1] if hold else p0[1] + (p1[1] - p0[1]) * f
+                pts.append((ts + dur * f, x, y, h0 + (h1 - h0) * f))
+
+        for si in sites:
+            s = nodes['S%03d' % si]
+            g = C.leg_geometry(z, lon, lat, cur[0], cur[1], s['lon'], s['lat'])
+            zc, d, zt = g['z_cruise'], g['d'], s['elev'] + C.CABIN
+            t_up = max(0.0, zc - cur[2]) / ty['v_up']
+            seg(off, t_up, cur, cur, cur[2], zc, True)
+            t_cr = d / ty['v_cruise']
+            seg(off + t_up, t_cr, cur, (s['lon'], s['lat']), zc, zc, False)
+            t_dn = max(0.0, zc - zt) / ty['v_down']
+            seg(off + t_up + t_cr, t_dn, (s['lon'], s['lat']),
+                (s['lon'], s['lat']), zc, zt, True)
+            seg(off + t_up + t_cr + t_dn, t_hand, (s['lon'], s['lat']),
+                (s['lon'], s['lat']), zt, zt, True)
+            off += t_up + t_cr + t_dn + t_hand
+            cur = (s['lon'], s['lat'], zt)
+        # 返航段
+        g = C.leg_geometry(z, lon, lat, cur[0], cur[1], o['lon'], o['lat'])
+        zc = g['z_cruise']
+        t_up = max(0.0, zc - cur[2]) / ty['v_up']
+        seg(off, t_up, cur, cur, cur[2], zc, True)
+        t_cr = g['d'] / ty['v_cruise']
+        seg(off + t_up, t_cr, cur, (o['lon'], o['lat']), zc, zc, False)
+        t_dn = max(0.0, zc - o['elev']) / ty['v_down']
+        seg(off + t_up + t_cr, t_dn, (o['lon'], o['lat']),
+            (o['lon'], o['lat']), zc, o['elev'], True)
+        return pts
+
+    def scan(factor):
+        """逐样本独立判定：直连可用 → 直连；否则须存在窗口内且双向可用的中继。"""
+        tot = rel = bad = 0
+        badlist = []
+        for _, r in q2.iterrows():
+            if r['架次编号'] not in t0:
                 continue
-            ok = False
-            for _, rr in q3r.iterrows():
-                if not (rr['建链完成时刻（s）'] - tol <= T <= rr['服务结束时刻（s）'] + tol):
+            for (T, lo, la, alt) in track(r, factor):
+                tot += 1
+                if C.link_available(z, lon, lat, (lo, la, alt, 'T'), gw)['avail']:
                     continue
-                a = C.link_available(z, lon, lat, (lo, la, alt, 'T'),
-                                     (rr['悬停经度（°）'], rr['悬停纬度（°）'], rr['悬停海拔（m）'], 'RA'))['avail']
-                b = C.link_available(z, lon, lat,
-                                     (rr['悬停经度（°）'], rr['悬停纬度（°）'], rr['悬停海拔（m）'], 'RB'), gw)['avail']
-                if a and b:
-                    ok = True; break
-            if ok:
-                rel += 1
-            else:
-                bad += 1
-                if len(badlist) < 5:
-                    badlist.append((sid, round(T, 1), round(alt, 1)))
-    ck('D', 'D-1', '运输机全时域通信无中断（T-3.2）', bad == 0,
+                ok = False
+                for _, rr in q3r.iterrows():
+                    if not (rr['建链完成时刻（s）'] - tol <= T <= rr['服务结束时刻（s）'] + tol):
+                        continue
+                    a = C.link_available(z, lon, lat, (lo, la, alt, 'T'),
+                                         (rr['悬停经度（°）'], rr['悬停纬度（°）'], rr['悬停海拔（m）'], 'RA'))['avail']
+                    b = C.link_available(z, lon, lat,
+                                         (rr['悬停经度（°）'], rr['悬停纬度（°）'], rr['悬停海拔（m）'], 'RB'), gw)['avail']
+                    if a and b:
+                        ok = True; break
+                if ok:
+                    rel += 1
+                else:
+                    bad += 1
+                    if len(badlist) < 5:
+                        badlist.append((r['架次编号'], round(float(T), 1), round(float(alt), 1)))
+        return tot, rel, bad, badlist
+
+    tot, rel, bad, badlist = scan(1)
+    ck('D', 'D-1', '运输机全时域通信无中断（T-3.2，判定步长 %.0f s）' % dt, bad == 0,
        "采样 %d（直连 %d / 中继 %d / 中断 %d）%s" % (tot, tot - rel - bad, rel, bad,
                                                     badlist if badlist else ""))
     # 保障方式与中继编号一致性
@@ -261,6 +425,16 @@ def group_D(D, nodes, types, boxes, z, lon, lat):
     ck('D', 'D-2', '保障方式=中继 的行均填写中继架次编号', bad_ref == 0, "缺失 %d" % bad_ref)
     ways = set(q3c['保障方式'].unique())
     ck('D', 'D-3', '保障方式取值合法（直连/中继）', ways <= {'直连', '中继'}, str(ways))
+    # 通信保障表覆盖 Q2 全部运输架次（Q3 继承关系的数据侧复核）
+    ck('D', 'D-4', '通信保障表覆盖 Q2 全部 %d 个运输架次' % len(q2),
+       set(q3c['运输架次编号']) == set(q2['架次编号']),
+       "%d 架次" % q3c['运输架次编号'].nunique())
+    # 亚步连续性量化（1/4 判定步长；判定步长之间的覆盖空洞只量化、不作判据）
+    tot4, rel4, bad4, badlist4 = scan(4)
+    ck('D', 'D-5', '亚步连续性量化（步长 %.0f s = 判据的 1/4，非判据）' % (dt / 4.0), True,
+       "采样 %d（直连 %d / 中继 %d）中 %d 处无直连且无中继覆盖（%.2f%%）%s" % (
+           tot4, tot4 - rel4 - bad4, rel4, bad4, 100.0 * bad4 / max(1, tot4),
+           badlist4 if badlist4 else ""))
 
 
 # ================= E 分区 =================
@@ -286,11 +460,19 @@ def group_E(D, nodes, types, boxes):
     # 资源不跨组：各组资源之和 == 全局需求
     ck('E', 'E-5', '每组至少配置资源（T-4.7）',
        bool((q4[['A型运输无人机数', 'B型运输无人机数', 'C型运输无人机数']].sum(axis=1) >= 0).all()), "")
-    # 各组架次数之和 应等于 Q3 的 18（间接：通过服务区覆盖数验证）
-    ck('E', 'E-6', '各组服务区并集 == Q3 全部服务区',
-       set(s for K in (2, 3) for sub in [q4[q4['K（2或3）'] == K]]
-           for s in sub['服务区列表'] for s in str(s).split(';') if s) ==
-       {'S%03d' % i for i in range(1, 16)}, "")
+    # 分区覆盖 == 全部 15 个服务区，且 == Q2 运输架次实际服务的服务区集合
+    # （Q3 继承 Q2 的 37 个并行架次，故此处以 Q2 结果为准，不再引用 Q1 的 18 架次）
+    part = set(s for K in (2, 3) for sub in [q4[q4['K（2或3）'] == K]]
+               for s in sub['服务区列表'] for s in str(s).split(';') if s)
+    serve15 = {'S%03d' % i for i in range(1, 16)}
+    q2 = D['q2']
+    served = set()
+    if q2 is not None:
+        for s in q2['访问服务区顺序']:
+            served |= {x.strip() for x in str(s).split(';') if x.strip()}
+    ck('E', 'E-6', '各组服务区并集 == 全部 15 服务区（= Q2 架次实际覆盖集）',
+       part == serve15 and (not served or served == serve15),
+       "分区 %d 个 / Q2 实际覆盖 %d 个" % (len(part), len(served)))
 
 
 # ================= F 可复现 =================
@@ -362,7 +544,8 @@ def group_R(D, nodes, types, boxes, z, lon, lat):
                                       for k, v in sorted(fragile.items(),
                                                          key=lambda x: -x[1]))))
     # R3 口径打击：D1 对立解释下的指标
-    ck('R', 'R3', 'D1 口径对抗已量化（已记入 IT-03）', True, "总能耗差异 45.3%，q* 不变")
+    ck('R', 'R3', 'D1 口径对抗已全格量化（45 格遍历，见 tests/run_verification.py V4.2）', True,
+       "全格总能耗差 55.6%（单格最小 44.0%），6 个能量限格翻转")
     # R4 常识打击
     util = (boxes['单箱质量（kg）'].sum()) / (len(q1) * max(types[k]['q_max'] for k in types))
     ck('R', 'R4', '常识检查：总交付质量 758 kg 与架次数自洽', True,

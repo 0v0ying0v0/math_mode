@@ -290,6 +290,48 @@ def los_blocked(z, lon, lat, p1, p2, samples=400):
     return bool(np.any(hline < zg))
 
 
+# 各角色发射功率 Pt[dBm] 与天线增益 G[dBi] [通信链路参数]
+ROLE_TX = {'T': (20.0, 3.0), 'RA': (20.0, 6.0), 'RB': (19.0, 8.0), 'G01': (27.0, 12.0)}
+ROLE_RX = {'T': 3.0, 'RA': 6.0, 'RB': 8.0, 'G01': 12.0}
+
+
+def dir_link_budget(tx_role, rx_role):
+    """单向链路允许的最大路径损耗 Lmax[dB] [附录3]。"""
+    Pt, Gt = ROLE_TX[tx_role]
+    return Pt + Gt + ROLE_RX[rx_role] - L_SYS - (P_SENS + M_FADE)
+
+
+def link_budget_limit(role_a, role_b):
+    """双向链路允许的最大路径损耗 = 两个方向中较紧者 [附录3]。"""
+    return min(dir_link_budget(role_a, role_b), dir_link_budget(role_b, role_a))
+
+
+def free_space_range_km(lmax, extra_loss=0.0):
+    """自由空间（无地形遮挡）下路径损耗恰为 lmax 的三维距离 [km]。
+
+    L_bf = 32.4 + 20lg f[MHz] + 20lg d[km]  [ITU-R P.525-5 式(6)]
+    反解 d = 10^((lmax - extra_loss - 32.4 - 20lg f) / 20)。
+    供通信几何模块反推门限半径，避免任何手抄半径（治理检查 G-02/G-03）。
+    """
+    return 10.0 ** ((lmax - extra_loss - 32.4 - 20.0 * math.log10(F_MHZ)) / 20.0)
+
+
+def fspl_db(d_km):
+    """自由空间基本传输损耗 [dB]，标量。ITU-R P.525-5 式(6)。
+
+    与 ``free_space_range_km`` 互为反函数；链路侧一律用**损耗比较**
+    （``fspl_db(d) <= Lmax``）而非"距离 ≤ 反解半径"，否则浮点舍入会在
+    门限附近产生 ±1 的分歧（实测 775 对里 1 对）。
+    """
+    return 32.4 + 20.0 * math.log10(F_MHZ) + 20.0 * math.log10(max(float(d_km), 1e-9))
+
+
+def fspl_db_arr(d_km):
+    """自由空间基本传输损耗 [dB]，numpy 向量版（口径与 ``fspl_db`` 逐位相同）。"""
+    d = np.maximum(np.asarray(d_km, dtype=float), 1e-9)
+    return 32.4 + 20.0 * math.log10(F_MHZ) + 20.0 * np.log10(d)
+
+
 def link_available(z, lon, lat, ep_a, ep_b, params=None):
     """双向链路可用性 [附录3]。
 
@@ -299,18 +341,12 @@ def link_available(z, lon, lat, ep_a, ep_b, params=None):
     'RB' 中继回传端：Pt 19 dBm, G 8 dBi
     'G01' 网关：Pt 27 dBm, G 12 dBi
     """
-    role_tx = {'T': (20.0, 3.0), 'RA': (20.0, 6.0), 'RB': (19.0, 8.0), 'G01': (27.0, 12.0)}
-    role_rx = {'T': 3.0, 'RA': 6.0, 'RB': 8.0, 'G01': 12.0}
-    def dir_budget(tx, rx):
-        Pt, Gt = role_tx[tx]
-        Gr = role_rx[rx]
-        return Pt + Gt + Gr - L_SYS - (P_SENS + M_FADE)
-    Lmax = min(dir_budget(ep_a[3], ep_b[3]), dir_budget(ep_b[3], ep_a[3]))
+    Lmax = link_budget_limit(ep_a[3], ep_b[3])
     dist_km = horizontal_m(ep_a[0], ep_a[1], ep_b[0], ep_b[1]) / 1000.0
     dist3 = math.sqrt(dist_km ** 2 + ((ep_a[2] - ep_b[2]) / 1000.0) ** 2)
     # 自由空间基本传输损耗：L_bf = 32.4 + 20log10(f[MHz]) + 20log10(d[km])
     # 常数 32.4 取自 ITU-R P.525-5 式(6) [6]；f 以 MHz、d 以 km 计
-    fspl = 32.4 + 20 * math.log10(F_MHZ) + 20 * math.log10(max(dist3, 1e-9))
+    fspl = fspl_db(dist3)
     blocked = los_blocked(z, lon, lat, ep_a, ep_b)
     lpath = fspl + (L_OBS if blocked else 0.0)
     return dict(avail=(lpath <= Lmax), Lmax=Lmax, Lpath=lpath, fspl=fspl,

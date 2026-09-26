@@ -105,7 +105,10 @@ _VOLQ_CACHE = {}
 
 
 def volq_table(ty, geom, elev_o, elev_s):
-    key = (id(ty), round(geom['d'], 6), elev_o, elev_s, ty['rho'])
+    # 缓存键不得用 id(ty)：灵敏度扫描每次 dict(types[k]) 都会新建对象，
+    # 旧键会在 CPython 回收后复用 id 而命中错误缓存（给出别的 rho 的表）。
+    key = (ty['name'], round(ty['rho'], 9), round(geom['d'], 6),
+           round(geom['z_cruise'], 6), elev_o, elev_s)
     if key in _VOLQ_CACHE:
         return _VOLQ_CACHE[key]
     grid = np.arange(0.0, ty['vol_max'] + 1e-12, 0.002)
@@ -128,47 +131,137 @@ def q_energy_limit(ty, geom, elev_o, elev_s, vol):
 
 
 # ---------------------------------------------------------------------------
-# Q1.2 组批：每服务区独立的最少架次数装箱
+# Q1.2 组批：每服务区独立的最少架次数装箱（(k, E, T) 三级字典序精确最优）
 # ---------------------------------------------------------------------------
-def min_sorties_for_site(ty, geom, boxes, elev_o, elev_s):
-    """精确求解：给定机型与箱集合，求最少架次数及方案（DFS + 剪枝 + 对称性破除）。
+def _bin_energy(ty, geom, q, elev_o, elev_s, cache):
+    """单架次往返总能耗。只依赖总质量 q（去程载荷 q、回程空载）。"""
+    key = round(q, 9)
+    hit = cache.get(key)
+    if hit is None:
+        hit = (C.leg_time_energy(ty, geom, q, elev_o, elev_s)['E'] +
+               C.leg_time_energy(ty, geom, 0.0, elev_s, elev_o)['E'])
+        cache[key] = hit
+    return hit
 
-    箱数 ≤15，容量约束强（A 型最多约 4 箱），搜索空间可控。
-    可行性 = 质量 ∧ 体积 ∧ **能量**（T-1.4）。
+
+def _bin_time(ty, geom, n, elev_o, elev_s):
+    """单架次往返作业时间。只依赖箱数 n：航段时间与载荷无关
+    （见 core.leg_time_energy 的 t = h_up/v_up + d/v_cruise + h_dn/v_down），
+    载荷只经 t_prep + t_box·n + t_hand_base + t_hand_box·n 进入。"""
+    out = C.leg_time_energy(ty, geom, 0.0, elev_o, elev_s)
+    back = C.leg_time_energy(ty, geom, 0.0, elev_s, elev_o)
+    return (ty['t_prep'] + ty['t_box'] * n + out['t'] + back['t']
+            + ty['t_hand_base'] + ty['t_hand_box'] * n)
+
+
+def optimal_packing(ty, geom, boxes, elev_o, elev_s):
+    """精确求解给定机型与箱集合下的 (架次数, 总能耗, 累计时间) 字典序最优装箱。
+
+    取代早期"最少架次数 DFS 的首个可行解即返回"的做法——那种做法在最小 k
+    内不做能耗寻优，会给出偏斜划分（如 S002/S003 的 67/14，被同 k 同时间的
+    42/39 严格支配；见评审 C2）。
+
+    可行性 = 质量 ∧ 体积 ∧ **能量**（附录 2 返航安全余量）。
+    逐子集预判可行性后做子集 DP：
+        D[S] = lexmin_{可行子集 T ∋ lowbit(S), T ⊆ S} ( D[S\\T] ⊕ T )
+    其中 ⊕ 表示按 (架次数, 能耗, 时间) 三级字典序合并。该 DP 对三级字典序目标
+    满足最优子结构，故所得解精确最优；子集枚举 O(3^n)，n ≤ 15（最大服务区箱数）
+    在秒级内完成。
+
+    返回 dict(k, E, T, assign)，assign 为每架次的箱下标列表。
     """
-    idx = list(range(len(boxes)))
-    idx.sort(key=lambda i: -boxes[i][1])      # 大箱优先
-    best = {'k': 10 ** 9, 'assign': None}
-    cap_q, cap_v = ty['q_max'], ty['vol_max']
+    n = len(boxes)
+    if n == 0:
+        return dict(k=0, E=0.0, T=0.0, assign=[])
+    N = 1 << n
+    m = np.array([b[1] for b in boxes], dtype=float)
+    v = np.array([b[2] for b in boxes], dtype=float)
+    cnt = np.zeros(N, dtype=np.int64)
+    mass = np.zeros(N)
+    vol = np.zeros(N)
+    for j in range(n):
+        h = 1 << j
+        cnt[h:h * 2] = cnt[0:h] + 1
+        mass[h:h * 2] = mass[0:h] + m[j]
+        vol[h:h * 2] = vol[0:h] + v[j]
 
-    def dfs(pos, bins):
-        if len(bins) >= best['k']:
-            return
-        if pos == len(idx):
-            if len(bins) < best['k']:
-                best['k'] = len(bins)
-                best['assign'] = [list(b[0]) for b in bins]
-            return
-        i = idx[pos]
-        w, v = boxes[i][1], boxes[i][2]
-        tried = set()
-        for b in bins:
-            key = (round(b[1], 6), round(b[2], 6))
-            if key in tried:                  # 对称性破除
-                continue
-            tried.add(key)
-            nq, nv = b[1] + w, b[2] + v
-            if (nq <= cap_q + 1e-9 and nv <= cap_v + 1e-9
-                    and nq <= q_energy_limit(ty, geom, elev_o, elev_s, nv) + 1e-9):
-                b[0].append(i); b[1] = nq; b[2] = nv
-                dfs(pos + 1, bins)
-                b[0].pop(); b[1] -= w; b[2] -= v
-        bins.append([[i], w, v])
-        dfs(pos + 1, bins)
-        bins.pop()
+    # 可行性：质量 ∧ 体积 ∧ 能量（能量上限按子集体积查 volq 阶梯表）
+    grid, vals = volq_table(ty, geom, elev_o, elev_s)
+    qelim = vals[np.clip(np.searchsorted(grid, vol, side='right') - 1, 0, len(vals) - 1)]
+    feas = ((mass <= ty['q_max'] + 1e-9) & (vol <= ty['vol_max'] + 1e-9)
+            & (mass <= qelim + 1e-9))
+    feas[0] = False
+    fS = np.nonzero(feas)[0]
+    if fS.size == 0:
+        return dict(k=10 ** 9, E=float('inf'), T=float('inf'), assign=None)
 
-    dfs(0, [])
-    return best
+    # 子集 → 单架次能耗/时间（按唯一质量、唯一箱数查缓存）
+    ecache = {}
+    Earr = np.full(N, np.inf)
+    Tarr = np.full(N, np.inf)
+    tcache = {}
+    for S in fS:
+        S = int(S)
+        Earr[S] = _bin_energy(ty, geom, float(mass[S]), elev_o, elev_s, ecache)
+        c = int(cnt[S])
+        if c not in tcache:
+            tcache[c] = _bin_time(ty, geom, c, elev_o, elev_s)
+        Tarr[S] = tcache[c]
+
+    # 按最低位分组可行子集，供 DP 枚举（T ∋ lowbit(S) 保证分块不重复计数）
+    lbidx = np.zeros(N, dtype=np.int64)
+    for S in range(1, N):
+        lbidx[S] = (S & -S).bit_length() - 1
+    by_lb = defaultdict(list)
+    for S in fS:
+        by_lb[int(lbidx[S])].append(int(S))
+    by_lb = {b: np.array(lst, dtype=np.int64) for b, lst in by_lb.items()}
+
+    FULL = N - 1
+    BIG = np.int64(10 ** 9)
+    Dk = np.full(N, BIG, dtype=np.int64)
+    De = np.full(N, np.inf)
+    Dt = np.full(N, np.inf)
+    par = np.full(N, -1, dtype=np.int64)
+    Dk[0] = 0
+    De[0] = 0.0
+    Dt[0] = 0.0
+    for S in range(1, N):
+        arr = by_lb.get(int(lbidx[S]))
+        if arr is None:
+            continue
+        sel = (arr & np.int64(FULL ^ S)) == 0         # T ⊆ S（T 只在 n 位内有值）
+        if not sel.any():
+            continue
+        T = arr[sel]
+        rest = S ^ T
+        kk = Dk[rest] + 1
+        ok = kk < BIG
+        if not ok.any():
+            continue
+        T, rest, kk = T[ok], rest[ok], kk[ok]
+        ee = De[rest] + Earr[T]
+        tt = Dt[rest] + Tarr[T]
+        mk = int(kk.min())
+        s2 = kk == mk
+        ee2, tt2, T2 = ee[s2], tt[s2], T[s2]
+        i = int(np.lexsort((tt2, ee2))[0])           # 先比能耗，再比时间
+        Dk[S], De[S], Dt[S], par[S] = mk, ee2[i], tt2[i], T2[i]
+
+    k, E, T = int(Dk[FULL]), float(De[FULL]), float(Dt[FULL])
+    if k >= BIG:                       # 该 (站点, 机型) 在该 ρ 下无可行装箱
+        return dict(k=BIG, E=float('inf'), T=float('inf'), assign=None)
+    assign = []
+    S = FULL
+    while S:
+        Tb = int(par[S])
+        assert Tb > 0, ('回溯失败', S, Tb)
+        assign.append([b for b in range(n) if (Tb >> b) & 1])
+        S ^= Tb
+    # 架次内按（质量降序, 箱数降序, 箱号升序）重排，使架次编号稳定可复现
+    assign.sort(key=lambda grp: (-sum(boxes[b][1] for b in grp), -len(grp),
+                                 min(boxes[b][0] for b in grp)))
+    return dict(k=k, E=E, T=T, assign=assign)
 
 
 def build_solution(ty, geom, boxes, assign, elev_o, elev_s):
@@ -228,14 +321,14 @@ def main():
                   encoding='utf-8-sig')
 
     # ================= Q1.2/Q1.3 组批 =================
-    plan = {}          # (i,k) -> assign
+    plan = {}          # (i,k) -> 精确最优装箱结果
     detail = {}
     for i in range(1, 16):
         s = nodes['S%03d' % i]
         bx = site_boxes[i]
         for k in ('A', 'B', 'C'):
             t = types[k]
-            best = min_sorties_for_site(t, geom[i], bx, o['elev'], s['elev'] + C.CABIN)
+            best = optimal_packing(t, geom[i], bx, o['elev'], s['elev'] + C.CABIN)
             plan[(i, k)] = best
             detail[(i, k)] = build_solution(t, geom[i], bx, best['assign'],
                                             o['elev'], s['elev'] + C.CABIN) \
@@ -250,28 +343,15 @@ def main():
             if b['assign'] is None:
                 continue
             d = detail[(i, k)]
-            cands.append(dict(type=k, k=b['k'],
-                              E=sum(x['E'] for x in d), T=sum(x['T'] for x in d)))
+            E = sum(x['E'] for x in d)
+            T = sum(x['T'] for x in d)
+            # 自检：DP 目标值必须与 core 物理函数逐位一致
+            assert abs(E - b['E']) < 1e-9 and abs(T - b['T']) < 1e-9, (i, k, E, b['E'], T, b['T'])
+            cands.append(dict(type=k, k=b['k'], E=E, T=T))
         cands.sort(key=lambda c: (c['k'], c['E'], c['T']))
         site_choice[i] = cands
 
     # ---- 方案 A：每服务区独立选最优机型（Q1.2 可行解 + Q1.3 基准） ----
-    rows = []
-    sid = 0
-    for i in range(1, 16):
-        c = site_choice[i][0]
-        k = c['type']
-        d = detail[(i, k)]
-        for srt in d:
-            sid += 1
-            rows.append(dict(
-                架次编号='Q1-%03d' % sid,
-                服务区编号='S%03d' % i,
-                机型编号=k,
-                货箱编号列表=';'.join(sorted(boxes_df['货箱编号'].iloc[j]
-                                            for j in range(0)))  # placeholder replaced below
-            ))
-    # 重新生成（需真实箱号）
     rows = []
     sid = 0
     for i in range(1, 16):
@@ -370,13 +450,10 @@ def main():
                 w_max = max(b[1] for b in bx); v_of = {b[1]: b[2] for b in bx}
                 ms = max_safe_payload(t, geom[i], o['elev'], s['elev'] + C.CABIN, w_max, v_of[w_max])
                 per_type_bottleneck[(i, k)] = ms
-                b = min_sorties_for_site(t, geom[i], bx, o['elev'], s['elev'] + C.CABIN)
+                b = optimal_packing(t, geom[i], bx, o['elev'], s['elev'] + C.CABIN)
                 if b['assign'] is None:
                     continue
-                d = build_solution(t, geom[i], bx, b['assign'], o['elev'], s['elev'] + C.CABIN)
-                if d is None:
-                    continue
-                cand = dict(type=k, k=b['k'], E=sum(x['E'] for x in d), T=sum(x['T'] for x in d))
+                cand = dict(type=k, k=b['k'], E=b['E'], T=b['T'])
                 if bestc is None or (cand['k'], cand['E'], cand['T']) < (bestc['k'], bestc['E'], bestc['T']):
                     bestc = cand
             if bestc is None:

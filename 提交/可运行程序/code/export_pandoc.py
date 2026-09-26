@@ -51,7 +51,10 @@ li { margin: 2pt 0; }
 def find_pandoc():
     try:
         import pypandoc
-        return pypandoc.get_pandoc_path(), pypandoc.get_pandoc_version()
+        p = pypandoc.get_pandoc_path()
+        if p and not os.path.exists(p) and os.path.exists(p + '.exe'):  # Windows 下补 .exe
+            p += '.exe'
+        return p, pypandoc.get_pandoc_version()
     except Exception:
         p = shutil.which('pandoc')
         return p, 'unknown'

@@ -123,12 +123,12 @@ def main():
     bad = re.findall(r'<span class="math">[^<]*\\(?:[A-Za-z]{2,})', h)
     ck('E-14', '公式中无未转换的 LaTeX 命令残留', not bad,
        ('残留 %d 处: %s' % (len(bad), bad[:3])) if bad else '')
-    # DOCX 可解析
+    # DOCX 可解析（跨平台：用 zipfile 读 document.xml，替代 macOS 专属的 textutil）
     if os.path.exists(DOCX):
-        r = subprocess.run(['textutil', '-convert', 'txt', '-stdout', DOCX],
-                           capture_output=True, text=True)
-        txt = r.stdout
-        ck('E-19', 'DOCX 可被 textutil 解析', r.returncode == 0 and len(txt) > 10000,
+        import zipfile as _zipfile
+        _xml = _zipfile.ZipFile(DOCX).read('word/document.xml').decode('utf-8', 'ignore')
+        txt = ''.join(re.findall(r'<w:t[^>]*>([^<]*)</w:t>', _xml))
+        ck('E-19', 'DOCX 可解析（document.xml 文本量充足）', len(txt) > 10000,
            '%d 字符' % len(txt))
         for kw in ('摘要', '问题重述', '模型建立与求解', '适用条件', '参考文献'):
             ck('E-20.' + kw, 'DOCX 含章节「%s」' % kw, kw in txt, '')

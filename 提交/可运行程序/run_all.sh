@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 一键复现：四问求解 → 图表 → 论文导出 → 全部验证
 set -e
+set -o pipefail
 cd "$(dirname "$0")"
 PY=".venv/bin/python"
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/mpl"
@@ -38,5 +39,5 @@ run "论文-结果交叉对表 C6:"  $PY -B tests/check_consistency.py
 run "导出结构验证:"          $PY -B tests/check_export.py
 
 echo
-if [ $fail -eq 0 ]; then echo "全部通过。"; else echo "存在失败项（全局验证 GR-1 的 63% 鲁棒性为已声明的不可判定项，属预期）。"; fi
+if [ $fail -eq 0 ]; then echo "全部通过。"; else echo "存在失败项（应全绿，请检查上方输出）。"; fi
 echo "PDF：浏览器打开 paper/export/main.html → ⌘P → 存储为 PDF"

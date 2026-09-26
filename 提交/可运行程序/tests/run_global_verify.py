@@ -49,12 +49,15 @@ def chain_checks(nodes, types, boxes, z, lon, lat):
        "Q1 %d 架次 / Q2 %d 架次（Q2 为满足硬约束而拆分，属预期差异）"
        % (len(q1), len(q2)))
 
-    # 断点 2：Q2 -> Q3（Q3 运输部分 == Q1/Q3 一致；Q3 箱继承 Q1）
+    # 断点 2：Q2 -> Q3（Q3 运输层继承 Q2 的 37 个并行架次，T-3.1；不再继承 Q1）
     ck('GC-2a', 'Q3 通信保障表引用合法的运输架次编号',
-       set(q3c['运输架次编号']) <= set(q1['架次编号']), "")
-    ck('GC-2b', 'Q3 运输能耗 == Q1 运输能耗（逐位）',
-       abs(q1['架次能耗（kWh）'].sum() - q1['架次能耗（kWh）'].sum()) < 1e-9,
-       "%.6f kWh" % q1['架次能耗（kWh）'].sum())
+       set(q3c['运输架次编号']) <= set(q2['架次编号']),
+       "Q3 引用 %d / Q2 共 %d 个架次" % (q3c['运输架次编号'].nunique(), len(q2)))
+    q3s = json.load(open(os.path.join(OUT, 'Q3_summary.json'), encoding='utf-8'))
+    e2 = float(q2['架次能耗（kWh）'].sum()); e3 = q3s.get('运输能耗kWh')
+    ck('GC-2b', 'Q3 运输能耗 == Q2 架次能耗合计（逐位）',
+       e3 is not None and abs(float(e3) - e2) < 1e-9,
+       "Q2 %.6f kWh / Q3 %s kWh" % (e2, e3))
 
     # 断点 3：Q3 -> Q4
     sites4 = set()

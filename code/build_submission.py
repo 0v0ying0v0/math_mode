@@ -24,6 +24,8 @@ SUB = os.path.join(ROOT, '提交')
 OUT = os.path.join(ROOT, 'out')
 TPL = os.path.join(ROOT, '结果提交模板.xlsx')
 PY = os.path.join(ROOT, '.venv', 'bin', 'python')
+if not os.path.exists(PY):      # 无 .venv 时回退到当前解释器（跨平台/无虚拟环境）
+    PY = sys.executable
 
 # 模板 Sheet -> 源 CSV
 SHEET_SRC = [
@@ -100,8 +102,10 @@ def main():
           % len(os.listdir(os.path.join(SUB, '论文', 'figs'))))
 
     # ---------- 3. 检查说明：跑全部验证套件并留存原始输出 ----------
+    # Windows 下 'bash' 会被 CreateProcess 解析为 System32 的 WSL bash，需显式定位 Git Bash
+    BASH = shutil.which('bash') or 'bash'
     suites = [
-        ('治理硬检查 G-01..G-06', ['bash', os.path.join(ROOT, 'tests', 'governance_check.sh')]),
+        ('治理硬检查 G-01..G-06', [BASH, os.path.join(ROOT, 'tests', 'governance_check.sh')]),
         ('问题验证 V1-V5', [PY, '-B', os.path.join(ROOT, 'tests', 'run_verification.py')]),
         ('独立校验 A-F + 红队 R1-R5', [PY, '-B', os.path.join(ROOT, 'code', 'verify.py')]),
         ('Q3 通信零中断独立校验', [PY, '-B', os.path.join(ROOT, 'tests', 'verify_q3_comm.py')]),
@@ -114,7 +118,8 @@ def main():
     env = dict(os.environ, MPLCONFIGDIR=os.environ.get('MPLCONFIGDIR', '/tmp/mpl'))
     raw, summary = [], []
     for name, cmd in suites:
-        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
+        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', env=env)
         out = (p.stdout or '') + (p.stderr or '')
         raw.append("\n" + "=" * 80 + "\n【%s】\n命令: %s\n退出码: %d\n" % (name, ' '.join(cmd), p.returncode)
                    + "=" * 80 + "\n" + out)
@@ -161,9 +166,7 @@ def main():
     chk += ["\n## 4. 结论\n",
             "- 验证套件：%d 个，其中 **%d 个退出码非 0**。" % (len(summary), nfail)]
     if nfail:
-        chk += ["- 非 0 项说明：`全局验证 B8` 的 **GR-1**（±5% 载荷扰动下可行率 63%）为**已声明的不可判定项**",
-                "  （论文 §7.4）。其成因为数据给定的能量紧度：失效集中于 S002/S003 两个 C 型远距离架次，",
-                "  两站 67 kg 已是该分区最大可装质量，结构上不可改善。其余套件均全部通过。"]
+        chk += ["- 非 0 项说明：见各套件输出。正常终局应为全绿（无非 0 项）。"]
     else:
         chk += ["- 全部套件通过。"]
     with open(os.path.join(SUB, '检查说明', '一致性检查报告.md'), 'w', encoding='utf-8') as f:
@@ -243,10 +246,10 @@ bash run_all.sh
 
 | 问题 | 关键结果 |
 |---|---|
-| 一 | 18 架次, 64.4265 kWh, 33043.2 s, 最低返航 SOC 20.89% |
-| 二 | 37 架次, makespan 12522.3 s, 首批与医疗时限 100% 满足 |
-| 三 | 14 中继架次, 总能耗 70.3003 kWh, 通信中断 0/609 采样点 |
-| 四 | K=2 需 5 运输机+2 中继（缺 1 架 C 型）；K=3 需 8+3（缺 3 运输机+1 中继） |
+| 一 | 18 架次, 63.2416 kWh, 33043.2 s, 最低返航 SOC 22.71% |
+| 二 | 37 架次, makespan 12527.0 s, 首批与医疗时限 100% 满足 |
+| 三 | 15 中继架次, 总能耗 94.7400 kWh, 通信中断 0/348 需中继样本 |
+| 四 | K=2 需 11 运输机+4 中继（缺口率 2.4167）；K=3 需 13+6（缺口率 4.25） |
 
 ## 验证状态
 
@@ -254,12 +257,12 @@ bash run_all.sh
 |---|---|
 | 治理硬检查 G-01..G-06 | 全部通过 |
 | 问题验证 V1-V5 | 51/51 |
-| 独立校验 A-F + 红队 R1-R5 | 42/42 |
-| Q3 通信零中断 | 中断 0/609 |
+| 独立校验 A-F + 红队 R1-R5 | 52/52 |
+| Q3 通信零中断 | 中断 0/348 需中继样本 |
 | 提交模板对齐 | 6/6 逐字符一致 |
-| 全局验证 B8 | 12/13（GR-1 为已声明不可判定项） |
+| 全局验证 B8 | 13/13 |
 | 账本结算 B9 | 7/7 |
-| 论文-结果交叉对表 C6 | 49/49 |
+| 论文-结果交叉对表 C6 | 66/66 |
 | 导出结构验证 | 20/20 |
 """
     with open(os.path.join(SUB, '运行说明.md'), 'w', encoding='utf-8') as f:

@@ -323,7 +323,7 @@ def fig6_a1_two_readings(nodes, types, z, lon, lat):
         ax.set_ylabel('单点往返能耗 (kWh)')
         ax.set_title('%s 型：A-1 两种读法的往返能耗' % k, fontsize=10)
         ax.legend(fontsize=7); ax.grid(axis='y', alpha=0.3)
-    fig.suptitle('图6  假设 A-1 两种读法的并列对比（读法 b 使能耗低估约 45%）', fontsize=11)
+    fig.suptitle('图6  假设 A-1 两种读法的并列对比（读法 b 使能耗低估约 55%）', fontsize=11)
     fig.savefig(os.path.join(FIG, 'fig6_a1_two_readings.png'))
     plt.close(fig)
 

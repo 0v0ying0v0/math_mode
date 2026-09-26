@@ -27,7 +27,8 @@ fi
 
 say "=== G-02  求解模块不得重写物理公式 (PLAN §3.1 唯一口径) ==="
 # 求解模块中出现 3.6e6 / 32.4 / 20*log10 / 0.65* 等物理常数即视为重写
-for f in code/q1_grouping.py code/q2_schedule.py code/q3_joint.py code/q4_partition.py; do
+# comm_geo.py 由 C4 修复纳入：门限半径必须由 core 的链路预算反推
+for f in code/q1_grouping.py code/q2_schedule.py code/q3_joint.py code/q4_partition.py code/comm_geo.py; do
   [ -f "$f" ] || { say "  [skip] $f 尚未创建"; continue; }
   if grep -nE '3\.6e6|32\.4[^0-9]|20[[:space:]]*\*[[:space:]]*math\.log10|0\.65[[:space:]]*\*[[:space:]]*\(?0\.90' "$f"; then
     bad "$f 出现物理常数，应由 core.py 提供"
@@ -39,6 +40,13 @@ done
 say "=== G-03  唯一物理常数源 ==="
 n=$(grep -rlE '^[[:space:]]*(G|CABIN|CLEARANCE|F_MHZ|L_OBS|P_SENS|M_FADE)[[:space:]]*=' code/ 2>/dev/null | grep -v '^code/core.py$' | wc -l | tr -d ' ')
 if [ "$n" -eq 0 ]; then ok "物理常数仅定义于 code/core.py"; else bad "有 $n 个文件重复定义物理常数"; fi
+# 派生物理量：门限半径 / 链路余量不得写成字面量（C4）
+# 判定右值是否为**纯数字字面量**（允许 1.0e4 与行尾注释）；形如
+#   GW_RANGE_M = 1000.0 * C.free_space_range_km(GW_LMAX)
+# 是合法的派生表达式（单位换算 × core 的函数），不构成"手抄常量"，故不匹配。
+LIT='^[[:space:]]*(GW_RANGE_M|RA_RANGE_M|L_RA_MAX|L_RB_MAX)[[:space:]]*=[[:space:]]*[0-9][0-9_.eE+-]*[[:space:]]*(#.*)?$'
+m=$(grep -rnE "$LIT" code/ 2>/dev/null | wc -l | tr -d ' ')
+if [ "$m" -eq 0 ]; then ok "通信门限半径/链路余量均由 core 派生，无手抄字面量"; else grep -rnE "$LIT" code/; bad "有 $m 处手抄的通信门限常量"; fi
 
 say "=== G-04  λ 变更审计：effectiveness_rubric.md 中的 λ 必须与审计记录一致 ==="
 # 从 rubric 的公式定义行取当前 λ
