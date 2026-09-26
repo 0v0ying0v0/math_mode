@@ -20,10 +20,25 @@ if ! git ls-remote "$REMOTE" >/dev/null 2>&1; then
 fi
 echo "   ✅ 认证通过"
 
-git remote remove origin 2>/dev/null || true
-git remote add origin "$REMOTE"
+# 只设置 origin，不删除重建——remove/add 会清空 refs/remotes/origin/*，
+# 使 "远端有新提交" 与 "远端没动" 在本地看起来完全一样，掩盖真实分叉。
+if ! git remote get-url origin >/dev/null 2>&1; then
+  git remote add origin "$REMOTE"
+elif [ "$(git remote get-url origin)" != "$REMOTE" ]; then
+  git remote set-url origin "$REMOTE"
+fi
 
-echo "2) 推送 main..."
+echo "2) 同步远端状态..."
+git fetch origin
+
+if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+  echo "⚠️  远端 main 上有本地没有的提交，直接推送会被拒绝。"
+  echo "   请先处理分叉后再运行本脚本："
+  git log --oneline HEAD..origin/main | sed 's/^/     /'
+  exit 1
+fi
+
+echo "3) 推送 main..."
 git push -u origin main
 
-echo "3) 完成：https://github.com/0v0ying0v0/math_mode"
+echo "4) 完成：https://github.com/0v0ying0v0/math_mode"

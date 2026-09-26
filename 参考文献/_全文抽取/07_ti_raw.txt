@@ -1,0 +1,314 @@
+www.ti.com
+
+Table of Contents
+
+Application Note
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+MSP430 Applications
+ABSTRACT
+Rechargeable batteries are used as the power supply source in many portable electronic equipment such as laptops, cell phones, and digital cameras. The most popular rechargeable batteries are nickel-cadmium (NiCd), nickel-metal-hydride (NiMH), and lithium-ion (Li-ion), and charging circuits depend on the battery chemistry. This application report describes a method to charge a Li-ion battery using an MSP430TM microcontroller. Project collateral discussed in this application report can be downloaded from the following URL: https:// www.ti.com/lit/zip/SLAA287.
+Table of Contents
+1 Introduction.............................................................................................................................................................................2 2 Measurement Circuit.............................................................................................................................................................. 3 3 Software...................................................................................................................................................................................5
+3.1 Main....................................................................................................................................................................................5 3.2 ADC ISR.............................................................................................................................................................................5 3.3 Watchdog Timer ISR.......................................................................................................................................................... 5 3.4 Software Flowchart............................................................................................................................................................ 6 4 Conclusion.............................................................................................................................................................................. 7 5 References.............................................................................................................................................................................. 7 6 Revision History......................................................................................................................................................................7
+Trademarks
+MSP430TM is a trademark of Texas Instruments. All trademarks are the property of their respective owners.
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+1
+
+Copyright © 2022 Texas Instruments Incorporated
+
+Introduction
+
+www.ti.com
+
+1 Introduction
+Li-ion is the chemistry of choice for portable applications, because of its high capacity-to-size ratio and a low self-discharge characteristic. Methods to implement battery charging solutions include options such as power management ICs, MCU controlled, and even logic devices. Advantages of the MCU-controlled charging method include safe charging, time efficiency, and low cost.
+Battery capacity (C), expressed in milliamp-hours (mAh), is a measure of battery life between charges. Battery current has the units of C-rate. For example, for a 500 mA-h battery, the current corresponding to 1C is 500 mA and the current corresponding to 0.1C is 50 mA.
+A Li-ion battery charging process can include three stages:
+· Slow charge: Precharging stage using a current of 0.1C · Fast charge: Constant current charging stage using a current of 1C · Constant voltage charging stage
+During the slow charge stage, the battery is charged with a constant low charge current of 0.1C if the battery voltage is below 2.5 V. If some batteries, like NiCd, are recharged without fully discharging, they suffer from a phenomenon called memory effect, which causes a reduction in the battery capacity. Li-ion batteries do not suffer from memory effect and do not need to be fully discharged before recharging. The slow charge stage is rarely used during the charging process of a Li-ion battery.
+The fast charge (constant current) and constant voltage charging are the most important stages during a recharge process. Most Li-ion batteries have a fully charged voltage of 4.1 V or 4.2 V. The battery is first charged with a constant current of 1C until the battery voltage reaches 4.1 V or 4.2 V. The firmware continuously checks the charging current by sensing the voltage at the current sense resistor (Rsense) and adjusting the duty cycle of the PWM output from the MCU. The battery voltage is checked frequently. When the battery's voltage reaches 4.1 V or 4.2 V, the charger switches to constant voltage charging mode.
+The battery is then charged with a constant voltage source at a fixed battery voltage of 4.1 or 4.2 V. The battery voltage is checked and maintained at 4.1 V by controlling the duty cycle of the PWM output. During this process the charging current starts to fall due to internal cell resistance. When the charging current falls below 0.1C, the charging process must stop.
+
+Pre-Charging Vreg (4.2 V)
+
+Constant Current Charging
+
+Constant Voltage Charging
+
+Ireg(500 mA)
+
+Vmin (3 V)
+
+Vstart
+
+Ibat
+
+Ipre (50 mA) Imin
+
+0
+
+1
+
+2.5
+
+Time - Hours
+
+Figure 1-1. Current vs Voltage Curve for Li-ion Battery Charging
+
+2
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Copyright © 2022 Texas Instruments Incorporated
+
+www.ti.com
+
+Measurement Circuit
+
+If charging continues when the battery is fully charged, most of the electrical energy is converted to thermal energy. Overcharging batteries can cause overheating or explosion due to outgassing of the electrolyte and can severely reduce battery life. Li-ion batteries are extremely sensitive to overcharging, and it is critical that the final voltage be controlled to within ±50 mV of 4.1 V or 4.2 V. A battery charger design must be able to determine a fully charged battery to avoid overcharging. A few methods to determine a fully charged condition are:
+· When the current drops to 0.1C during the constant voltage charging stage, the battery can be considered as fully charged.
+· Measure the battery temperature to avoid overheating. · Safe timing method: If the charging time is longer than a predetermined time, the battery can be considered
+as fully charged.
+2 Measurement Circuit
+Figure 2-1 shows block-level schematic of a charger.
+
+D3 AC-DC 6 V Adapter
+
+D1
+
+L'
+
+Q'
+
+VO
+
+LDO
+
+3.3 V VCC
+
+R4
+
+D2
+
+R5
+
+TA1
+
+Q2
+
+C2
+
+R3
+
+MSP430F12x2
+
+MCU
+
+A0 A1 A2
+P1.x R6 LED
+
+C1
+
+R1
+
+R2 B1
+
+Vref R7 RT1
+
+NOTE: The thermistor may be external or integrated in the battery
+
+Rsense
+
+Figure 2-1. Block Level Schematic
+A buck converter is used during the constant current and voltage charge stages. A buck converter is a stepdown voltage converter that uses the inductor as a current source to the output load impedance, which is the battery. The PNP and NPN transistors form a switch that is controlled by a PWM signal. The Timer_A3 on the MSP430 MCU can control the current for charging the battery using the PWM feature. When this switch is closed (on), current flows through the inductor and the capacitor is charged (see Figure 2-2). When the switch is open (off), the inductor tries to maintain its current flow by inducing a voltage, because an inductor cannot have an instantaneous change in current. The current now flows through the diode and the inductor charges the capacitor (see Figure 2-3). The LC network acts as a low-pass filter, and if the PWM frequency is much higher than the cut-off frequency of the LC network, the capacitor voltage is constant and equal to the mean value of the input voltage to the buck converter.
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+3
+
+Copyright © 2022 Texas Instruments Incorporated
+
+Measurement Circuit L1
+
+www.ti.com L1
+
+VIN D2
+
+Battery
+
+VIN
+
+C1
+
+D2
+
+Battery C1
+
+Figure 2-2. Buck Converter Switch On
+
+Figure 2-3. Buck Converter Switch Off
+
+The value of the inductor can be calculated by Equation 1.
+
+L = Duty cycle × T × (VI ­ Vsat ­ VO) / 2IO
+
+(1)
+
+where
+· Duty Cycle = the duty cycle of the PWM · T = Period of the PWM · VO = Voltage output · Vsat = Voltage loss on the switch · VI = Voltage input to the switch · IO = Current for constant current stage
+Assuming VI is 6 V, Vsat is 0.5 V, IO is 500 mA, VO is 4.575 V, 1/T is 15 kHz, duty cycle is 50%:
+
+VO = Vbat + Ibat × Rsense = 4.2 + 500 mA × 0.75 = 4.575 V
+
+(2)
+
+The inductor should be at least 31 µH. For this implementation, a value of 75 µH is used. When the timer is clocked from the DCO with a frequency of 3.84 MHz, the TACCR0 value must be 255 to achieve a PWM frequency of 15 kHz (3.84 MHz / 256). The timer runs in up mode, and the timer output switches in toggle/set mode. The duty cycle of the timer output (TA1) can be controlled by adjusting the value of TACCR1. A PWM resolution of 8 bits is enough to control the constant current flow in the battery during the constant current charging stage and maintain a constant voltage on the battery during the constant voltage charging stage. If the capacitor is 220 µF and the inductor is 75 µH, the cutoff frequency of the LC network is 1.2 kHz ( 1/ 2 ×  × L × C ), which is much lower than the PWM frequency. This helps the capacitor to effectively reduce the output voltage ripple and maintain a DC voltage level.
+Three channels (A0, A1, A2) on the 10-bit ADC on the MSP430 MCU can be used to monitor the battery voltage, battery temperature, and battery current. 1 LSB is equal to Vref / (N ­ 1), where Vref is the reference voltage and N is the resolution in bits of the ADC. With a 1.5-V on chip reference, 1 LSB is 1.5 / 1023 = 1.47 mV.
+The range of voltages that the ADC needs to detect can be calculated as follows:
+The highest voltage, VO, during the constant current charging stage is 4.575 V. The voltage to the ADC input due to the voltage divider (R1 = 2.1 × R2) is 4.575 / 3.1 = 1.5 V. This is within Vref and can be resolved by the ADC.
+The lowest voltage that the ADC needs to detect is during the constant voltage stage to monitor the battery current and stop the charging process. The ADC needs to detect the voltage drop created by a 0.1C current through the battery. In this case it is 50 mA × 0.75 = 37.5 mV. This is approximately 25 LSB of resolution and can be resolved by the ADC.
+For this application, a thermistor (RT1) is connected to the negative pole of the battery. The thermistor resistance decreases with temperature and so does the thermistor voltage. A 10k thermistor was used.
+An abnormally low voltage indicates overheating, and the charging process must stop. This voltage can be detected by the ADC input.
+
+4
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Copyright © 2022 Texas Instruments Incorporated
+
+www.ti.com
+
+Software
+
+3 Software
+The following sections describe the division of the software provided with this application report into a main routine and two ISRs.
+3.1 Main
+This routine configures the DCO to run SMCLK at 3.84 MHz. The Timer_A3 registers are configured to output a PWM on TA1. The timer is also configured to trigger ADC conversions. The ADC is configured in repeat sequence of channels mode along with the DTC, which is configured to continuously transfer data from channels A2, A1, and A0 to a RAM array.
+Channel A2 samples the thermistor voltage (battery temperature), A1 monitors the voltage on Rsense (battery current), and A0 monitors the voltage on R2 (battery voltage).
+The 1.5-V reference is output on the VREF+ pin on the MCU to be used as a reference for thermistor voltage measurements.
+3.2 ADC ISR
+The ADC ISR is triggered when the DTC completes the transfer of one block (3 words of data) to ADCSA, which is a RAM array that stores conversion results from channel A2, A1, and A0.
+If the battery temperature exceeds 40°C, the charging process is stopped. The timer, ADC, and the watchdog timer (interval timer mode) are halted.
+In the beginning of the charge cycle, if the battery voltage is less than 1 V or greater than 4.3 V, a LED is set to indicate a short circuit or battery not detected status.
+During the constant current and constant voltage charging stages, TACCR1 controls the duty cycle of PWM output on TA1 to maintain constant current and voltage.
+3.3 Watchdog Timer ISR
+When the charge current drops to 0.1C during the constant voltage charging stage, the watchdog timer is set as an interval timer clocked from ACLK/8. The watchdog timer ISR is entered every 8 seconds to create a 15-minute delay before ending the charging process.
+The MSP430 MCU stays in LPM0 during the entire charging process and enters active mode only when set by the interrupt service routines.
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+5
+
+Copyright © 2022 Texas Instruments Incorporated
+
+Software
+3.4 Software Flowchart Figure 3-1 shows a software flowchart of the charging algorithm.
+Setup ADC10 TA2: ADC10 Trigger TA1: Variable PWM Output
+Start Conversion, enter LPM0
+
+www.ti.com
+
+Set P1.1 for Alarm Status
+
+V(R2) > 0.3 V
+
+No
+
+Yes
+
+V(R2) < 1.5 V
+
+Battery not detected. Set
+
+No
+
+P1.1 for Alarm
+
+Yes
+
+Precharge I(Rsense) = 0.1C
+
+V(R2) > 0.85 V No
+
+Yes
+
+Constant current charge, I(Rsense) = 1C
+
+No
+
+V(R2) > 1.42 V
+
+Yes
+
+I(Rsense) < 0.1C
+
+No
+
+Constant voltage charging, V(R2) = 1.45 V
+
+Yes
+
+Exit LPM0, Setup WDT as Interval Timer
+
+V(R2) = 1.45V, Charge for 30 minutes using WDT Interval Timer mode, enter LPM0, Blink P1.0 LED
+
+End Charging, P1.0 LED Stops Blinking
+Figure 3-1. Software Flowchart
+
+6
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Copyright © 2022 Texas Instruments Incorporated
+
+www.ti.com
+
+Conclusion
+
+4 Conclusion
+The MSP430 microcontrollers are a good fit for a Li-ion battery charger solution, because of integrated peripherals like the high-resolution ADC and watchdog timer. The example application for this report has been implemented and tested to be functional for the operations described.
+5 References
+1. MSP430x1xx Family User's Guide 2. MSP430F11x2, MSP430F12x2 Mixed-Signal Microcontrollers
+
+6 Revision History
+NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+
+Changes from May 19, 2018 to April 1, 2022
+
+Page
+
+· Updated the numbering format for tables, figures, and cross references throughout the document..................2 · Corrected the inductance value calculated by Equation 1 .................................................................................3
+
+SLAA287B ­ DECEMBER 2005 ­ REVISED APRIL 2022 Submit Document Feedback
+
+Li-Ion Battery Charger Solution Using an MSP430TM MCU
+
+7
+
+Copyright © 2022 Texas Instruments Incorporated
+
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES "AS IS" AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these resources.
+TI's products are provided subject to TI's Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with such TI products. TI's provision of these resources does not expand or otherwise alter TI's applicable warranties or warranty disclaimers for TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265 Copyright © 2022, Texas Instruments Incorporated
+
+

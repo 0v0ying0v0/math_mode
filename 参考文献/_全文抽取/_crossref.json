@@ -1,0 +1,199 @@
+[
+ {
+  "doi": "10.5270/ESA-c5d3d65",
+  "type": "dataset",
+  "title": [
+   "Copernicus DEM"
+  ],
+  "container": [
+   "Copernicus DEM"
+  ],
+  "volume": null,
+  "issue": null,
+  "page": null,
+  "article_number": null,
+  "issued": [
+   [
+    2022
+   ]
+  ],
+  "published_print": [
+   [
+    2022
+   ]
+  ],
+  "publisher": "European Space Agency",
+  "authors": [
+   [
+    null,
+    null
+   ],
+   [
+    null,
+    null
+   ]
+  ],
+  "has_abstract": false,
+  "abstract": null,
+  "subject": [],
+  "license": []
+ },
+ {
+  "doi": "10.1109/TSMC.2016.2582745",
+  "type": "journal-article",
+  "title": [
+   "Vehicle Routing Problems for Drone Delivery"
+  ],
+  "container": [
+   "IEEE Transactions on Systems, Man, and Cybernetics: Systems"
+  ],
+  "volume": "47",
+  "issue": "1",
+  "page": "70-85",
+  "article_number": null,
+  "issued": [
+   [
+    2017,
+    1
+   ]
+  ],
+  "published_print": [
+   [
+    2017,
+    1
+   ]
+  ],
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "authors": [
+   [
+    "Dorling",
+    "Kevin"
+   ],
+   [
+    "Heinrichs",
+    "Jordan"
+   ],
+   [
+    "Messier",
+    "Geoffrey G."
+   ],
+   [
+    "Magierowski",
+    "Sebastian"
+   ]
+  ],
+  "has_abstract": false,
+  "abstract": null,
+  "subject": [],
+  "license": [
+   [
+    "https://ieeexplore.ieee.org/Xplorehelp/downloads/license-information/IEEE.html",
+    "vor"
+   ]
+  ]
+ },
+ {
+  "doi": "10.1016/j.trd.2020.102668",
+  "type": "journal-article",
+  "title": [
+   "Energy consumption models for delivery drones: A comparison and assessment"
+  ],
+  "container": [
+   "Transportation Research Part D: Transport and Environment"
+  ],
+  "volume": "90",
+  "issue": null,
+  "page": "102668",
+  "article_number": "102668",
+  "issued": [
+   [
+    2021,
+    1
+   ]
+  ],
+  "published_print": [
+   [
+    2021,
+    1
+   ]
+  ],
+  "publisher": "Elsevier BV",
+  "authors": [
+   [
+    "Zhang",
+    "Juan"
+   ],
+   [
+    "Campbell",
+    "James F."
+   ],
+   [
+    "Sweeney II",
+    "Donald C."
+   ],
+   [
+    "Hupman",
+    "Andrea C."
+   ]
+  ],
+  "has_abstract": false,
+  "abstract": null,
+  "subject": [],
+  "license": [
+   [
+    "https://www.elsevier.com/tdm/userlicense/1.0/",
+    "tdm"
+   ]
+  ]
+ },
+ {
+  "doi": "10.1109/MCOM.2016.7470933",
+  "type": "journal-article",
+  "title": [
+   "Wireless communications with unmanned aerial vehicles: opportunities and challenges"
+  ],
+  "container": [
+   "IEEE Communications Magazine"
+  ],
+  "volume": "54",
+  "issue": "5",
+  "page": "36-42",
+  "article_number": null,
+  "issued": [
+   [
+    2016,
+    5
+   ]
+  ],
+  "published_print": [
+   [
+    2016,
+    5
+   ]
+  ],
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "authors": [
+   [
+    "Zeng",
+    "Yong"
+   ],
+   [
+    "Zhang",
+    "Rui"
+   ],
+   [
+    "Lim",
+    "Teng Joon"
+   ]
+  ],
+  "has_abstract": false,
+  "abstract": null,
+  "subject": [],
+  "license": [
+   [
+    "https://ieeexplore.ieee.org/Xplorehelp/downloads/license-information/IEEE.html",
+    "vor"
+   ]
+  ]
+ }
+]
