@@ -1,0 +1,8 @@
+{
+  "makespan": 12522.347574704807,
+  "wdelay": 221732.6588124733,
+  "first_ok": true,
+  "med_ok": true,
+  "n": 37,
+  "plan": "首批截止优先 + SPT"
+}

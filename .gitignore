@@ -1,0 +1,22 @@
+# 虚拟环境（302 MB，可由 run_all.sh 重建）
+.venv/
+
+# 分析工具缓存
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+._*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 论文导出中间产物（HTML/DOCX 由 code/export_paper.py 生成，保留以便直接查看）
+# 如需精简仓库，可取消下一行注释
+# paper/export/*.html
+# paper/export/*.docx
