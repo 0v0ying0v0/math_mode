@@ -34,7 +34,7 @@ def build_jobs(nodes, types, boxes, z, lon, lat):
         ty = types[r.机型编号]
         boxids = str(r.货箱编号列表).split(';')
         g = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], s['lon'], s['lat'])
-        f = C.leg_time_energy(ty, g, r.总质量kg, o['elev'], s['elev'] + C.CABIN)
+        f = C.leg_time_energy(ty, g, r['总质量（kg）'], o['elev'], s['elev'] + C.CABIN)
         b = C.leg_time_energy(ty, g, 0.0, s['elev'] + C.CABIN, o['elev'])
         # 逐箱交付时刻 = 到达服务区并可开始交接的时刻（含前面箱的交接时间）
         hand0 = ty['t_hand_base']
@@ -43,8 +43,8 @@ def build_jobs(nodes, types, boxes, z, lon, lat):
         for bi, bid in enumerate(boxids):
             boxt[bid] = off + ty['t_hand_box'] * bi
         jobs.append(dict(jid=r.架次编号, site=i, type=r.机型编号, n=len(boxids),
-                         q=r.总质量kg, vol=r.总体积m3, E=r.架次能耗kWh,
-                         dur=r.往返时间s, t_out=f['t'], boxes=boxids, boxt=boxt,
+                         q=r['总质量（kg）'], vol=r['总体积（m³）'], E=r['架次能耗（kWh）'],
+                         dur=r['往返时间（s）'], t_out=f['t'], boxes=boxids, boxt=boxt,
                          box_rows={bid: bmap[bid] for bid in boxids}))
     return jobs
 

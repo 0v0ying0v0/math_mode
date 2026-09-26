@@ -272,10 +272,107 @@ def main():
     fig3_resources()
     fig4_comm(nodes, z, lon, lat)
     fig5_partition(nodes, z, lon, lat)
+    fig6_a1_two_readings(nodes, types, z, lon, lat)
+    fig7_sensitivity(nodes, types, z, lon, lat)
     print("图表已生成 ->", FIG)
     for f in sorted(os.listdir(FIG)):
         print("  %-24s %8.1f KB" % (f, os.path.getsize(os.path.join(FIG, f)) / 1024))
     return n_relay
+
+
+# ---------------------------------------------------------------------------
+# 评估改进新增图：A-1 两读法对比 / 灵敏度条形图
+# ---------------------------------------------------------------------------
+def fig6_a1_two_readings(nodes, types, z, lon, lat):
+    """A-1 两种读法的并列对比（仿文献 [5] 的配对图写法）。"""
+    o = nodes['O01']
+    sites = list(range(1, 16))
+    rows = []
+    for i in sites:
+        s = nodes['S%03d' % i]
+        g = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], s['lon'], s['lat'])
+        for k in ('B', 'C'):
+            ty = types[k]; q = ty['q_max']
+            # 读法(a)：由标准航程反推（本文口径）
+            f = C.leg_time_energy(ty, g, q, o['elev'], s['elev'] + C.CABIN)
+            b = C.leg_time_energy(ty, g, 0.0, s['elev'] + C.CABIN, o['elev'])
+            Ea = f['E'] + b['E']
+            # 读法(b)：由爬升效率外推功率 P = m g / eta_up * (v_c / v_up)
+            def Pb(ty_, qq):
+                return (ty_['m_empty'] + qq) * C.G / ty_['eta_up'] * \
+                       (ty_['v_cruise'] / ty_['v_up']) / 1000.0
+            def legb(ty_, gg, qq, h0, h1):
+                d, zc = gg['d'], gg['z_cruise']
+                hu, hd = max(0.0, zc - h0), max(0.0, zc - h1)
+                m = ty_['m_empty'] + qq
+                E = Pb(ty_, qq) * (d / ty_['v_cruise']) / 3600.0
+                E += m * C.G * hu / ty_['eta_up'] / 3.6e6
+                return E
+            Eb = legb(ty, g, q, o['elev'], s['elev'] + C.CABIN) + \
+                 legb(ty, g, 0.0, s['elev'] + C.CABIN, o['elev'])
+            rows.append((i, k, Ea, Eb))
+    d = pd.DataFrame(rows, columns=['site', 'type', 'Ea', 'Eb'])
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
+    for ax, k in zip(axes, ('B', 'C')):
+        sub = d[d['type'] == k].sort_values('site')
+        x = np.arange(len(sub)); w = 0.38
+        ax.bar(x - w / 2, sub['Ea'], w, label='(a) 由标准航程反推【本文】', color='#1f77b4')
+        ax.bar(x + w / 2, sub['Eb'], w, label='(b) 由爬升效率外推', color='#d62728')
+        ax.set_xticks(x); ax.set_xticklabels(['S%03d' % s for s in sub['site']],
+                                             rotation=60, fontsize=7)
+        ax.set_ylabel('单点往返能耗 (kWh)')
+        ax.set_title('%s 型：A-1 两种读法的往返能耗' % k, fontsize=10)
+        ax.legend(fontsize=7); ax.grid(axis='y', alpha=0.3)
+    fig.suptitle('图6  假设 A-1 两种读法的并列对比（读法 b 使能耗低估约 45%）', fontsize=11)
+    fig.savefig(os.path.join(FIG, 'fig6_a1_two_readings.png'))
+    plt.close(fig)
+
+
+def fig7_sensitivity(nodes, types, z, lon, lat):
+    """OFAT 灵敏度条形图（S003 最大安全载荷）。"""
+    o = nodes['O01']; s = nodes['S003']
+    g = C.leg_geometry(z, lon, lat, o['lon'], o['lat'], s['lon'], s['lat'])
+
+    def qstar(ty):
+        lo, hi = 0.0, ty['q_max']
+        for _ in range(70):
+            q = (lo + hi) / 2
+            E = C.leg_time_energy(ty, g, q, o['elev'], s['elev'] + C.CABIN)['E'] + \
+                C.leg_time_energy(ty, g, 0.0, s['elev'] + C.CABIN, o['elev'])['E']
+            if C.energy_ok(ty, E):
+                lo = q
+            else:
+                hi = q
+        return lo
+
+    base = {k: qstar(types[k]) for k in ('A', 'B', 'C')}
+    factors = [
+        ('ρ: 0.20→0.30', lambda t: t.update(rho=0.30)),
+        ('ρ: 0.20→0.10', lambda t: t.update(rho=0.10)),
+        ('L_full ×0.8', lambda t: t.update(L_full=t['L_full'] * 0.8)),
+        ('E_use ×0.8', lambda t: t.update(E_use=t['E_use'] * 0.8)),
+        ('η↑: 0.72→0.60', lambda t: t.update(eta_up=0.60)),
+        ('η↑: 0.72→0.85', lambda t: t.update(eta_up=0.85)),
+        ('E_use ×1.2', lambda t: t.update(E_use=t['E_use'] * 1.2)),
+    ]
+    names = [f[0] for f in factors]
+    mat = {k: [] for k in ('A', 'B', 'C')}
+    for nm, mut in factors:
+        for k in ('A', 'B', 'C'):
+            t = dict(types[k]); mut(t)
+            mat[k].append(qstar(t) - base[k])
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    x = np.arange(len(names)); w = 0.26
+    for j, (k, col) in enumerate(zip(('A', 'B', 'C'), ('#1f77b4', '#2ca02c', '#d62728'))):
+        ax.bar(x + (j - 1) * w, mat[k], w, label='%s 型' % k, color=col)
+    ax.axhline(0, color='k', lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(names, rotation=28, fontsize=8, ha='right')
+    ax.set_ylabel('最大安全载荷变化 Δq* (kg)')
+    ax.set_title('图7  OFAT 灵敏度：S003 最大安全载荷对单因子的响应（基准 A=25.00 / B=30.00 / C=68.13 kg）',
+                 fontsize=10)
+    ax.legend(fontsize=8); ax.grid(axis='y', alpha=0.3)
+    fig.savefig(os.path.join(FIG, 'fig7_sensitivity.png'))
+    plt.close(fig)
 
 
 if __name__ == '__main__':

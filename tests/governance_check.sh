@@ -26,10 +26,10 @@ else
 fi
 
 say "=== G-02  求解模块不得重写物理公式 (PLAN §3.1 唯一口径) ==="
-# 求解模块中出现 3.6e6 / 32.45 / 20*log10 / 0.65* 等物理常数即视为重写
+# 求解模块中出现 3.6e6 / 32.4 / 20*log10 / 0.65* 等物理常数即视为重写
 for f in code/q1_grouping.py code/q2_schedule.py code/q3_joint.py code/q4_partition.py; do
   [ -f "$f" ] || { say "  [skip] $f 尚未创建"; continue; }
-  if grep -nE '3\.6e6|32\.45|20[[:space:]]*\*[[:space:]]*math\.log10|0\.65[[:space:]]*\*[[:space:]]*\(?0\.90' "$f"; then
+  if grep -nE '3\.6e6|32\.4[^0-9]|20[[:space:]]*\*[[:space:]]*math\.log10|0\.65[[:space:]]*\*[[:space:]]*\(?0\.90' "$f"; then
     bad "$f 出现物理常数，应由 core.py 提供"
   else
     ok "$f 无物理常数硬编码"

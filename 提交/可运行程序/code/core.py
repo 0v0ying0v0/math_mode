@@ -308,7 +308,9 @@ def link_available(z, lon, lat, ep_a, ep_b, params=None):
     Lmax = min(dir_budget(ep_a[3], ep_b[3]), dir_budget(ep_b[3], ep_a[3]))
     dist_km = horizontal_m(ep_a[0], ep_a[1], ep_b[0], ep_b[1]) / 1000.0
     dist3 = math.sqrt(dist_km ** 2 + ((ep_a[2] - ep_b[2]) / 1000.0) ** 2)
-    fspl = 32.45 + 20 * math.log10(F_MHZ) + 20 * math.log10(max(dist3, 1e-9))
+    # 自由空间基本传输损耗：L_bf = 32.4 + 20log10(f[MHz]) + 20log10(d[km])
+    # 常数 32.4 取自 ITU-R P.525-5 式(6) [6]；f 以 MHz、d 以 km 计
+    fspl = 32.4 + 20 * math.log10(F_MHZ) + 20 * math.log10(max(dist3, 1e-9))
     blocked = los_blocked(z, lon, lat, ep_a, ep_b)
     lpath = fspl + (L_OBS if blocked else 0.0)
     return dict(avail=(lpath <= Lmax), Lmax=Lmax, Lpath=lpath, fspl=fspl,

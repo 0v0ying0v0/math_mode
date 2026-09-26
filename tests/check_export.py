@@ -42,14 +42,33 @@ def main():
     blocks = n_p + n_li + n_cell
     ck('E-11', '总文本块数（段落+列表项+表格单元）≥ 300', blocks >= 300,
        '段落 %d + 列表 %d + 单元 %d = %d' % (n_p, n_li, n_cell, blocks))
-    # 图表引用
+    # 图表引用 —— 关键修复：不仅查 HTML 是否含 <img>，更要查**正文是否引用了图**
     figs = [f for f in sorted(os.listdir(FIGDIR)) if f.endswith('.png')]
     missing = [f for f in figs if ('../figs/%s' % f) not in h]
-    ck('E-12', '5 张图全部被 HTML 引用', not missing,
+    ck('E-12', '全部图被 HTML 引用', not missing,
        '引用 %d/%d' % (len(figs) - len(missing), len(figs)))
     ck('E-13', '图表标题（figcaption）齐备',
        len(re.findall(r'<figcaption', h)) >= len(figs),
        '%d 个' % len(re.findall(r'<figcaption', h)))
+    # E-16（新增，修复治理盲区）：正文 MD 中必须出现「图n」引用，且引用数 >= 正文所配图数
+    md = open(os.path.join(ROOT, 'paper', 'main.md'), encoding='utf-8').read()
+    # 正文 = 参考文献章之前
+    body = md[:md.index('## 八、参考文献')] if '## 八、参考文献' in md else md
+    n_inline = len(re.findall(r'!\[[^\]]*\]\(figs/', body))
+    n_ref = len(set(re.findall(r'\*\*图\s*(\d+)', body)))
+    ck('E-16', '正文含图片嵌入（![] 形式）≥ 5 张', n_inline >= 5,
+       '正文嵌入 %d 张' % n_inline)
+    ck('E-17', '正文含「图n」文字引用，编号连续 1..N', n_ref >= n_inline and
+       set(range(1, n_inline + 1)) <= set(int(x) for x in re.findall(r'\*\*图\s*(\d+)', body)),
+       '正文引用图号 %s' % sorted(int(x) for x in
+                                  set(re.findall(r'\*\*图\s*(\d+)', body))))
+    # E-18：DOCX 必须内嵌图片（此前 textutil 导出会丢失全部图片）
+    if os.path.exists(DOCX):
+        import zipfile
+        z = zipfile.ZipFile(DOCX)
+        media = [n for n in z.namelist() if 'media' in n and n.lower().endswith('.png')]
+        ck('E-18', 'DOCX 内嵌图片数 == 全部图数', len(media) == len(figs),
+           '内嵌 %d 张（图总数 %d）' % (len(media), len(figs)))
     # 数学渲染残留检查（不应出现裸 LaTeX 命令）
     bad = re.findall(r'<span class="math">[^<]*\\(?:[A-Za-z]{2,})', h)
     ck('E-14', '公式中无未转换的 LaTeX 命令残留', not bad,
@@ -59,10 +78,10 @@ def main():
         r = subprocess.run(['textutil', '-convert', 'txt', '-stdout', DOCX],
                            capture_output=True, text=True)
         txt = r.stdout
-        ck('E-15', 'DOCX 可被 textutil 解析', r.returncode == 0 and len(txt) > 10000,
+        ck('E-19', 'DOCX 可被 textutil 解析', r.returncode == 0 and len(txt) > 10000,
            '%d 字符' % len(txt))
         for kw in ('摘要', '问题重述', '模型建立与求解', '适用条件', '参考文献'):
-            ck('E-16.' + kw, 'DOCX 含章节「%s」' % kw, kw in txt, '')
+            ck('E-20.' + kw, 'DOCX 含章节「%s」' % kw, kw in txt, '')
     npass = sum(1 for *_, ok, _ in R if ok)
     print('\n' + '=' * 80)
     print('导出验证：%d/%d 通过' % (npass, len(R)))

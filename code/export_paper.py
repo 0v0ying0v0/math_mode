@@ -348,14 +348,8 @@ def main():
         f.write(doc)
     print("HTML ->", html_path, "%.1f KB" % (os.path.getsize(html_path) / 1024))
 
-    # DOCX via textutil
-    docx = os.path.join(OUTDIR, '山区洪涝灾害下无人机运输与通信协同优化.docx')
-    r = subprocess.run(['textutil', '-convert', 'docx', '-output', docx, html_path],
-                       capture_output=True, text=True)
-    if r.returncode == 0 and os.path.exists(docx):
-        print("DOCX ->", docx, "%.1f KB" % (os.path.getsize(docx) / 1024))
-    else:
-        print("DOCX 失败:", r.stderr.strip()[:300])
+    # DOCX 由 code/export_docx.py 生成（textutil 不内嵌图片，会丢失全部插图，故不用）
+    print("DOCX：请运行 code/export_docx.py（内嵌图片版）")
 
     # PDF via qlmanage（无 Chrome/LaTeX 时的回退）
     pdf = os.path.join(OUTDIR, '论文.pdf')
@@ -364,7 +358,7 @@ def main():
     cand = os.path.join(OUTDIR, os.path.basename(html_path) + '.png')
     if os.path.exists(cand):
         print("预览图 ->", cand)
-    return html_path, docx
+    return html_path
 
 
 if __name__ == '__main__':

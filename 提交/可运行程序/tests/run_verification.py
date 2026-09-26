@@ -228,9 +228,9 @@ def main():
     # V3.4 门限退化：FSPL == Lmax 时恰好切换
     Lmax = r_nb['Lmax']
     target_fspl = Lmax
-    D = 10 ** ((target_fspl - 32.45 - 20 * math.log10(C.F_MHZ)) / 20)   # km, 忽略高度差
+    D = 10 ** ((target_fspl - 32.4 - 20 * math.log10(C.F_MHZ)) / 20)   # km, 忽略高度差
     check("V3.4a", "门限距离解析解与数值判定一致（±0.01 km）",
-          abs(D - 12.511) < 0.01, "D=%.3f km" % D)
+          abs(D - 12.583) < 0.01, "D=%.3f km（ITU-R P.525-5 常数 32.4）" % D)
 
     # ================= V4 灵敏度 =================
     print("\n=== V4 灵敏度/稳健性 ===")

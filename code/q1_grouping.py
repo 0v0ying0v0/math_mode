@@ -299,12 +299,12 @@ def main():
     # ================= 汇总指标 =================
     summary = dict(
         sorties=len(q1_df),
-        energy=round(float(q1_df['架次能耗kWh'].sum()), 6),
-        makespan=round(float(q1_df['往返时间s'].sum()), 3),
+        energy=round(float(q1_df['架次能耗（kWh）'].sum()), 6),
+        makespan=round(float(q1_df['往返时间（s）'].sum()), 3),
         by_type={k: int((q1_df['机型编号'] == k).sum()) for k in ('A', 'B', 'C')},
-        soc_min=float(q1_df['返航SOC'].min()),
-        mass_util=round(float(q1_df['总质量kg'].sum()), 2),
-        vol_util=round(float(q1_df['总体积m3'].sum()), 4),
+        soc_min=float(q1_df['返航SOC（%）'].min()),
+        mass_util=round(float(q1_df['总质量（kg）'].sum()), 2),
+        vol_util=round(float(q1_df['总体积（m³）'].sum()), 4),
     )
 
     # ---- Pareto：每服务区机型 × 架次数的组合 ----
