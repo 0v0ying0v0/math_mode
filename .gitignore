@@ -28,3 +28,8 @@ __pycache__/
 
 # 部署私钥（绝不提交）
 .deploy/
+
+# 抓取工具/浏览器会话的临时中间产物
+_*.txt
+.playwright-mcp/
+
