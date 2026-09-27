@@ -7,7 +7,7 @@
       结果提交表.xlsx        ← 6 个 Sheet，按模板列名与顺序
       Q1_单点组批.csv ...     ← 同上 6 张表的 CSV（便于核对）
     论文/
-      论文.pdf（若已生成）/ 论文.html / 论文.docx / 论文.md / figs/
+      论文.pdf（xelatex 直出）/ 论文.docx / 论文.md / figs/
     检查说明/
       一致性检查报告.md       ← 生成的汇总
       验证套件输出.txt        ← 8 个套件的原始输出
@@ -18,6 +18,12 @@
 from __future__ import annotations
 import os, sys, shutil, subprocess, json, datetime
 import pandas as pd
+
+# 子套件会打印 ✅❌≤≥ 等非 GBK 字符，Windows 控制台/管道默认 GBK 会崩溃；
+# 统一 UTF-8：本脚本输出 + 传给子进程的环境变量。
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUB = os.path.join(ROOT, '提交')
@@ -75,30 +81,27 @@ def main():
     pm = os.path.join(ROOT, 'paper', 'main.md')
     pex = os.path.join(ROOT, 'paper', 'export')
     shutil.copy2(pm, os.path.join(SUB, '论文', '论文.md'))
-    for f in ('main.html', '山区洪涝灾害下无人机运输与通信协同优化.docx'):
-        s = os.path.join(pex, f)
-        if os.path.exists(s):
-            dst = '论文.html' if f.endswith('.html') else '论文.docx'
-            shutil.copy2(s, os.path.join(SUB, '论文', dst))
-    # PDF（若存在）
-    for cand in ('论文.pdf', '山区洪涝灾害下无人机运输与通信协同优化.pdf'):
-        s = os.path.join(pex, cand)
-        if os.path.exists(s):
-            shutil.copy2(s, os.path.join(SUB, '论文', '论文.pdf'))
-    # pandoc 版（公式原生渲染）
+    # DOCX（自实现：图片内嵌 + Unicode 数学）
+    docx = os.path.join(pex, '山区洪涝灾害下无人机运输与通信协同优化.docx')
+    if os.path.exists(docx):
+        shutil.copy2(docx, os.path.join(SUB, '论文', '论文.docx'))
+    # PDF（pandoc -> xelatex 直出，不经过 HTML）
+    pdf = os.path.join(pex, '论文.pdf')
+    if os.path.exists(pdf):
+        shutil.copy2(pdf, os.path.join(SUB, '论文', '论文.pdf'))
+    # pandoc 版（Word 原生公式 DOCX + LaTeX 源）
     pdir = os.path.join(pex, 'pandoc')
     if os.path.isdir(pdir):
         pdst = os.path.join(SUB, '论文', 'pandoc版')
         os.makedirs(pdst, exist_ok=True)
-        for f, dst in [('论文_pandoc.html', '论文_MathJax.html'),
-                       ('论文_pandoc.docx', '论文_Word原生公式.docx'),
+        for f, dst in [('论文_pandoc.docx', '论文_Word原生公式.docx'),
                        ('论文.tex', '论文.tex')]:
             sf = os.path.join(pdir, f)
             if os.path.exists(sf):
                 shutil.copy2(sf, os.path.join(pdst, dst))
     shutil.copytree(os.path.join(ROOT, 'paper', 'figs'),
                     os.path.join(SUB, '论文', 'figs'), dirs_exist_ok=True)
-    print("  [论文] 论文.md / 论文.html / 论文.docx / pandoc版（HTML+DOCX+LaTeX）/ figs（%d 张）"
+    print("  [论文] 论文.md / 论文.pdf（xelatex 直出）/ 论文.docx / pandoc版（DOCX+LaTeX）/ figs（%d 张）"
           % len(os.listdir(os.path.join(SUB, '论文', 'figs'))))
 
     # ---------- 3. 检查说明：跑全部验证套件并留存原始输出 ----------
@@ -115,7 +118,8 @@ def main():
         ('论文-结果交叉对表 C6', [PY, '-B', os.path.join(ROOT, 'tests', 'check_consistency.py')]),
         ('导出结构验证', [PY, '-B', os.path.join(ROOT, 'tests', 'check_export.py')]),
     ]
-    env = dict(os.environ, MPLCONFIGDIR=os.environ.get('MPLCONFIGDIR', '/tmp/mpl'))
+    env = dict(os.environ, MPLCONFIGDIR=os.environ.get('MPLCONFIGDIR', '/tmp/mpl'),
+               PYTHONIOENCODING='utf-8')
     raw, summary = [], []
     for name, cmd in suites:
         p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
@@ -200,11 +204,10 @@ def main():
 │   ├── Q3_通信保障.csv
 │   └── Q4_分区配置.csv
 ├── 论文/
-│   ├── 论文.pdf              # 论文 PDF（A4，45 页）
+│   ├── 论文.pdf              # 论文 PDF（A4，由 pandoc 直读 main.md 经 xelatex 编译）
 │   ├── 论文.md               # 论文源文件（Markdown）
-│   ├── 论文.html             # 打印就绪（浏览器打开 → Ctrl+P → 存储为 PDF）
 │   ├── 论文.docx             # Word 版
-│   ├── pandoc版/             # MathJax HTML + Word 原生公式 DOCX + LaTeX 源
+│   ├── pandoc版/             # Word 原生公式 DOCX + LaTeX 源
 │   └── figs/                 # 7 张图表
 ├── 检查说明/
 │   ├── 一致性检查报告.md      # 结果文件自检 + 覆盖性 + 验证套件汇总
@@ -218,16 +221,15 @@ def main():
 
 ## 论文 PDF
 
-论文 PDF 已生成，位置为 `论文/论文.pdf`（A4，45 页，由 Edge 无头模式根据打印就绪
-HTML `论文/论文.html` 导出）。源稿为 `论文/论文.md`。
+论文 PDF 已生成，位置为 `论文/论文.pdf`（A4，由 pandoc **直接读 `论文.md`** 经
+xelatex 编译，**全程不经过 HTML**）。源稿为 `论文/论文.md`。
 
 导出链路产物均已随包：
-- `论文.html`：自研 Markdown→HTML 转换器（Unicode 数学），浏览器打印 / Edge 无头均可用；
-- `论文.docx`：Word 版（图片内嵌）；
-- `pandoc版/`：pandoc 导出（MathJax HTML + Word 原生公式 DOCX + LaTeX 源）。
+- `论文.docx`：Word 版（图片内嵌，Unicode 数学）；
+- `pandoc版/`：Word 原生公式 DOCX + LaTeX 源。
 
-打印就绪 HTML 满足：`@page A4` 页边距、标题/表格/图/公式**分页避让**、
-表头**跨页重复**、打印色彩保真。上述条件由 `tests/check_export.py` 的 31 项断言验证通过。
+PDF 由 `tests/check_export.py` 校验：A4 页面、零 HTML 标签泄漏、关键 Unicode 符号
+（✅❌≤≥⇒↔→①②③℃）齐备、7 张图内嵌。
 
 ## 复现方法
 
@@ -263,7 +265,7 @@ bash run_all.sh
 | 全局验证 B8 | 13/13 |
 | 账本结算 B9 | 7/7 |
 | 论文-结果交叉对表 C6 | 66/66 |
-| 导出结构验证 | 31/31 |
+| 导出结构验证 | 28/28 |
 """
     with open(os.path.join(SUB, '运行说明.md'), 'w', encoding='utf-8') as f:
         f.write(readme)

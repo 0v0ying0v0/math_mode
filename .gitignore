@@ -37,4 +37,6 @@ _*.txt
 paper/export/pandoc/*.aux
 paper/export/pandoc/*.log
 paper/export/pandoc/论文.pdf
+paper/export/pandoc/*.synctex*
+*.synctex*
 

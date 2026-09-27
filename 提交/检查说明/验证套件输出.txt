@@ -444,39 +444,34 @@ C6 交叉对表：66/66 通过
 命令: D:\Apps\Python3\python.exe -B E:\project\policy__text_analysis\math_mode\tests\check_export.py
 退出码: 0
 ================================================================================
-E-1      OK                                                   HTML 存在 
-E-2      OK                                                   DOCX 存在 
-E-3      OK                                                   @page A4 页面规则 
-E-4      OK                                                   分页避让规则（表格/图/标题） 
-E-5      OK                                                   表头跨页重复 
-E-6      OK                                                   中文字体声明（宋体系） 
-E-7      OK                                                   公式样式存在（.math） 
-E-8      OK                                                   打印色彩保真 
-E-9      OK                                                   章节数 ≥ 8 13 个 h2
-E-10     OK                                                   表格数 ≥ 20 36 个表格
-E-11     OK                                                   总文本块数（段落+列表项+表格单元）≥ 300 段落 182 + 列表 50 + 单元 715 = 947
-E-12     OK                                                   全部图被 HTML 引用 引用 7/7
-E-13     OK                                                   图表标题（figcaption）齐备 7 个
-E-16     OK                                                   正文含图片嵌入（![] 形式）≥ 5 张 正文嵌入 5 张
-E-17     OK                                                   正文含「图n」文字引用，编号连续 1..N 正文引用图号 [1, 2, 3, 4, 5]
-E-18     OK                                                   DOCX 内嵌图片数 == 全部图数 内嵌 7 张（图总数 7）
-E-14     OK                                                   公式中无未转换的 LaTeX 命令残留 
-E-19     OK                                                   DOCX 可解析（document.xml 文本量充足） 36245 字符
-E-20.摘要  OK                                                   DOCX 含章节「摘要」 
-E-20.问题重述 OK                                                   DOCX 含章节「问题重述」 
-E-20.模型建立与求解 OK                                                   DOCX 含章节「模型建立与求解」 
-E-20.适用条件 OK                                                   DOCX 含章节「适用条件」 
-E-20.参考文献 OK                                                   DOCX 含章节「参考文献」 
-
---- pandoc 导出链路 ---
-P-0      OK                                                   pandoc 导出目录存在 E:\project\policy__text_analysis\math_mode\paper\export\pandoc
-P-1      OK                                                   HTML 含 MathJax（公式原生渲染） 
-P-2      OK                                                   HTML 内嵌图片数 == 图总数 内嵌 7 / 图 7
-P-3      OK                                                   HTML 表格数 >= 30 36 个
-P-4      OK                                                   DOCX 内嵌图片数 == 图总数 内嵌 7 / 图 7
-P-5      OK                                                   DOCX 含 Word 原生公式（OMML）>= 100 个 241 个（非纯文本公式）
-P-6      OK                                                   LaTeX 源存在且含图片引用 includegraphics 7 处
-P-7      OK                                                   LaTeX 源含 CJK 字体设置 
+F-1      OK                                                   PDF 存在 
+F-2      OK                                                   A4 页面 595.28 x 841.89 pts (A4)
+F-3      OK                                                   页数 ≥ 20 26 页
+F-4      OK                                                   PDF 文本可提取（含摘要） 43124 字符
+F-5.摘要   OK                                                   PDF 含章节「摘要」 
+F-5.问题重述 OK                                                   PDF 含章节「问题重述」 
+F-5.模型建立与求解 OK                                                   PDF 含章节「模型建立与求解」 
+F-5.结论   OK                                                   PDF 含章节「结论」 
+F-5.参考文献 OK                                                   PDF 含章节「参考文献」 
+F-6      OK                                                   PDF 零 HTML 标签泄漏 
+F-7      OK                                                   关键 Unicode 符号齐备（✅❌≤≥⇒↔→①②③℃） 全部出现
+F-8      OK                                                   PDF 内嵌图数 == 图总数 内嵌 7 / 图 7
+D-1      OK                                                   DOCX 存在（export_docx） 
+D-2      OK                                                   DOCX 内嵌图片数 == 全部图数 内嵌 7 张（图总数 7）
+D-3      OK                                                   DOCX 可解析（文本量充足） 36341 字符
+D-4.摘要   OK                                                   DOCX 含章节「摘要」 
+D-4.问题重述 OK                                                   DOCX 含章节「问题重述」 
+D-4.模型建立与求解 OK                                                   DOCX 含章节「模型建立与求解」 
+D-4.参考文献 OK                                                   DOCX 含章节「参考文献」 
+P-1      OK                                                   pandoc DOCX 存在 
+P-2      OK                                                   pandoc DOCX 含 Word 原生公式 >= 100 241 个
+P-3      OK                                                   pandoc DOCX 内嵌图片 == 图总数 内嵌 7 / 图 7
+P-4      OK                                                   LaTeX 源存在 
+P-5      OK                                                   LaTeX 源含图片引用 >= 图总数 includegraphics 7 处
+P-6      OK                                                   LaTeX 源含 CJK 字体设置 
+H-1      OK                                                   pandoc_header.tex 存在 
+H-2      OK                                                   回退头含 Segoe UI Symbol 字体 
+H-3      OK                                                   回退头含 newunicodechar 映射 
 
 ================================================================================
-导出验证：31/31 通过
+导出验证：28/28 通过

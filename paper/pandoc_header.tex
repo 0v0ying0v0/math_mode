@@ -1,0 +1,46 @@
+% =====================================================================
+% pandoc -> xelatex 直出 PDF 的 Unicode 回退头（-H 注入，位于导言区末尾）
+%
+% 目的：main.md 正文/表格中混用了少量裸 Unicode 符号（不经过 $..$），
+% 这些字符在 Latin Modern 正文缺字形、会导致 PDF 出现空洞。
+% 处理策略分两类：
+%   1) 数学符号 -> 映射到数学模式（与全文 $..$ 排版一致）
+%   2) 记号/圈号/emoji -> 切换到 Segoe UI Symbol（全符号覆盖，零缺字）
+% =====================================================================
+
+% 记号回退字体：Segoe UI Symbol（覆盖 ✅ ❌ ①②③ ℃ 等，实测零缺字）
+\newfontfamily\symbolfont{Segoe UI Symbol}
+
+% 论文标题居中：main.md 仅开头一个 #（作为论文标题），其余章节均为 ##/###
+\usepackage{titlesec}
+\titleformat{\section}[block]{\centering\Large\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{1.5em}
+
+% 启用逐字符映射
+\usepackage{newunicodechar}
+
+% ---- 数学符号 -> 数学模式 ----
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{⇒}{\ensuremath{\Rightarrow}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{ρ}{\ensuremath{\rho}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{∈}{\ensuremath{\in}}
+\newunicodechar{∧}{\ensuremath{\wedge}}
+\newunicodechar{⊕}{\ensuremath{\oplus}}
+\newunicodechar{∅}{\ensuremath{\varnothing}}
+\newunicodechar{⊆}{\ensuremath{\subseteq}}
+
+% ---- 记号/圈号/emoji -> Segoe UI Symbol ----
+\newunicodechar{✅}{{\symbolfont ✅}}
+\newunicodechar{❌}{{\symbolfont ❌}}
+\newunicodechar{①}{{\symbolfont ①}}
+\newunicodechar{②}{{\symbolfont ②}}
+\newunicodechar{③}{{\symbolfont ③}}
+\newunicodechar{④}{{\symbolfont ④}}
+\newunicodechar{⑤}{{\symbolfont ⑤}}
+\newunicodechar{℃}{{\symbolfont ℃}}

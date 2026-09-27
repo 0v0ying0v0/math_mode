@@ -4,9 +4,9 @@
 \PassOptionsToPackage{space}{xeCJK}
 \documentclass[
   10.5pt,
-]{article}
+]{extarticle}
 \usepackage{xcolor}
-\usepackage[margin=2.2cm]{geometry}
+\usepackage[a4paper,margin=2.2cm]{geometry}
 \usepackage{amsmath,amssymb}
 \setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 \usepackage{iftex}
@@ -118,13 +118,16 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
+  pdftitle={山区洪涝灾害下无人机运输与通信协同优化},
   hidelinks,
   pdfcreator={LaTeX via pandoc}}
 
+\title{山区洪涝灾害下无人机运输与通信协同优化}
 \author{}
 \date{}
 
 \begin{document}
+\maketitle
 
 \section{山区洪涝灾害下无人机运输与通信协同优化}\label{ux5c71ux533aux6d2aux6d9dux707eux5bb3ux4e0bux65e0ux4ebaux673aux8fd0ux8f93ux4e0eux901aux4fe1ux534fux540cux4f18ux5316}
 
@@ -135,7 +138,7 @@
 为几何基准，先由「标准航程---可用能量」唯一相容读法建立分段计费的能耗模型（§4.1.2），再以「需求（首批/医疗硬时限）→
 资源（实体机/电池/中继）→
 通信（逐时刻链路预算零中断）」三层约束依次收紧可行域，最后在冻结任务结构的前提下核算分区资源。全部物理规则实现于单一模块，并以
-9 套验证套件（逾 230 条断言）与静态检查保证四问口径一致。全文统一以
+9 套验证套件（逾 220 条断言）与静态检查保证四问口径一致。全文统一以
 \texttt{core.py} 为唯一物理规则实现，通过 51 条验证断言、52
 条独立校验断言、66 条论文---结果交叉对表与 6 项治理硬检查确保口径一致。
 
@@ -1493,17 +1496,25 @@ T-4.4 冻结 Q3
 各组所需资源 = 冻结时间轴上相应占用区间的\textbf{并发峰值}：
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}ll@{}}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
 \toprule\noalign{}
-资源 & 占用区间 \\
+\begin{minipage}[b]{\linewidth}\raggedright
+资源
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+占用区间
+\end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\(k\) 型运输无人机 & \([联合开始,\ 联合返回]\) \\
-\(k\) 型运输电池 & \([联合开始,\ 联合返回+\tau_{chg}(SOC_{end})]\) \\
-中继无人机 & \([中继开始,\ 返回O01]\) \\
-中继能源组件 & \([中继开始,\ 返回O01+\tau_{chg}(SOC_{end})]\) \\
+\(k\) 型运输无人机 & \([\text{联合开始},\ \text{联合返回}]\) \\
+\(k\) 型运输电池 &
+\([\text{联合开始},\ \text{联合返回}+\tau_{chg}(SOC_{end})]\) \\
+中继无人机 & \([\text{中继开始},\ \text{返回}O01]\) \\
+中继能源组件 &
+\([\text{中继开始},\ \text{返回}O01+\tau_{chg}(SOC_{end})]\) \\
 \end{longtable}
 }
 
@@ -1733,7 +1744,8 @@ Q3 通信零中断独立校验 & 独立重建轨迹，仅读结果文件，逐�
 账本结算 & 正负反馈比 / λ 复核 & \textbf{7/7} \\
 论文---结果交叉对表 & 从论文抽取 66 条断言，与结果文件比对 &
 \textbf{66/66} \\
-导出验证 & HTML 打印就绪性 + DOCX 可解析 + 图表引用 & \textbf{31/31} \\
+导出验证 & PDF（A4 / 零 HTML 泄漏 / 符号齐备）+ DOCX 可解析 + 图表引用 &
+\textbf{28/28} \\
 治理硬检查 G-01..G-06 & 唯一口径 / λ 审计 / 账本完整性 / 问题计数 &
 \textbf{全绿} \\
 \end{longtable}
@@ -2412,7 +2424,8 @@ B：复现命令}\label{ux9644ux5f55-bux590dux73b0ux547dux4ee4}
 \ExtensionTok{.venv/bin/python}\NormalTok{ tests/run\_settlement.py      }\CommentTok{\# 账本结算}
 \ExtensionTok{.venv/bin/python}\NormalTok{ code/q2\_merge\_accounting.py  }\CommentTok{\# G{-}B 代价核算（Q2 合并）}
 \ExtensionTok{.venv/bin/python}\NormalTok{ code/gis\_analysis.py         }\CommentTok{\# GIS 地形分析}
-\ExtensionTok{.venv/bin/python}\NormalTok{ code/export\_paper.py         }\CommentTok{\# 论文导出 HTML/DOCX}
+\ExtensionTok{.venv/bin/python}\NormalTok{ code/export\_docx.py          }\CommentTok{\# 论文导出 DOCX（内嵌图片）}
+\ExtensionTok{.venv/bin/python}\NormalTok{ code/export\_pandoc.py        }\CommentTok{\# 论文导出 PDF(xelatex 直出)/DOCX/LaTeX}
 \ExtensionTok{.venv/bin/python}\NormalTok{ tests/check\_export.py        }\CommentTok{\# 导出结构验证}
 \FunctionTok{bash}\NormalTok{ tests/governance\_check.sh                }\CommentTok{\# 治理硬检查}
 \end{Highlighting}

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""B11 论文导出：Markdown -> HTML -> DOCX（textutil）/ PDF（Word 或 qlmanage）。
+"""【已弃用】Markdown -> HTML 自实现转换器。
 
-无外部依赖（不依赖 pandoc / LaTeX / reportlab）：
-  - 自带 Markdown 子集解析器（标题/表格/列表/代码/引用/粗斜体/行内代码）
-  - 自带 LaTeX -> Unicode 数学转换（本论文的数学均为 Unicode 可表达的行内式）
-  - 图片以 data URI 内嵌，保证 DOCX 可脱离相对路径
+历史用途：无 pandoc/LaTeX 环境时的 HTML 后备导出。
+现状：论文 PDF 已改为由 code/export_pandoc.py 用 pandoc 直接读 main.md 经 xelatex
+编译（不经过 HTML），本模块的 md_to_html/main() 不再被调用。
+
+仍保留 `latex_to_unicode()`：被 code/export_docx.py 引用来把 LaTeX 行内公式转成
+Unicode 数学（DOCX 的非 HTML 交付仍需要它）。
 """
 from __future__ import annotations
 import os, re, sys, base64, html as _html, subprocess, shutil

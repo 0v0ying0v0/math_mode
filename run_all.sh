@@ -5,6 +5,7 @@ set -o pipefail
 cd "$(dirname "$0")"
 PY=".venv/bin/python"
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/mpl"
+export PYTHONIOENCODING=utf-8
 mkdir -p "$MPLCONFIGDIR"
 
 echo "=========== 1/4 四问求解 ==========="
@@ -19,9 +20,8 @@ $PY -B code/q2_merge_accounting.py        | tail -2
 $PY -B code/render.py                     | tail -2
 
 echo "=========== 3/4 论文导出 ==========="
-$PY -B code/export_paper.py               | tail -2   # 自实现 HTML（无依赖后备）
 $PY -B code/export_docx.py                | tail -2   # DOCX（内嵌图片）
-$PY -B code/export_pandoc.py              | tail -4   # pandoc：HTML(MathJax)/DOCX(原生公式)/LaTeX
+$PY -B code/export_pandoc.py              | tail -4   # pandoc：PDF(xelatex 直出)/DOCX(原生公式)/LaTeX
 
 echo "=========== 4/4 验证套件 ==========="
 fail=0
@@ -40,4 +40,4 @@ run "导出结构验证:"          $PY -B tests/check_export.py
 
 echo
 if [ $fail -eq 0 ]; then echo "全部通过。"; else echo "存在失败项（应全绿，请检查上方输出）。"; fi
-echo "PDF：已生成 paper/export/论文.pdf（Edge 无头导出）；重生成：浏览器打开 paper/export/main.html → Ctrl+P → 存储为 PDF"
+echo "PDF：已生成 paper/export/论文.pdf（pandoc -> xelatex 直出，不经过 HTML）"

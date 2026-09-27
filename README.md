@@ -34,29 +34,20 @@ bash run_all.sh
 
 ### 2.2 论文
 
-**三条导出链路并存**（各有分工）：
-
-| 链路 | 命令 | 产出 | 数学渲染 | 图片 |
-|---|---|---|---|---|
-| **pandoc（首选）** | `code/export_pandoc.py` | `论文_pandoc.html`（MathJax）/ `论文_pandoc.docx`（**Word 原生公式**）/ `论文.tex` | **原生** | 7/7 内嵌 |
-| 自实现 HTML | `code/export_paper.py` | `main.html` | Unicode 化 | 7/7 引用 |
-| 自实现 DOCX | `code/export_docx.py` | `*.docx` | Unicode 化 | 7/7 内嵌 |
-
-> pandoc 由 pip 包 `pypandoc_binary` 提供（自包含二进制，无需系统安装）。
-> 论文 PDF 由 Edge 无头模式按打印就绪 HTML 导出（A4、45 页），不依赖 LaTeX；
-> 本机已安装 TeX Live，`paper/export/pandoc/论文.tex` 亦随包提供（可用 `xelatex` 编译），
-> 但因其会丢失 ≤ ↔ ρ ⇒ ✅ ❌ ①②③ 等 Unicode 符号与加粗中文，**成品 PDF 一律以 Edge 版为准**。
-
+**论文 PDF 由 pandoc 直接读 `paper/main.md` 经 xelatex 编译**（不经过 HTML），公式由
+LaTeX 原生渲染，Unicode 符号（≤ ↔ ρ ⇒ ✅ ❌ ①②③ 等）由 `paper/pandoc_header.tex`
+的回退映射保证字形完整。
 
 | 文件 | 说明 |
 |---|---|
 | `paper/main.md` | 论文源文件（Markdown，九章 + 3 个附录） |
-| `提交/论文/论文.pdf` | **论文 PDF**：A4，45 页，包含正文与 7 张图表 |
-| `paper/export/main.html` | 打印就绪 HTML 源，可在浏览器中打印为 PDF |
-| `paper/export/山区洪涝灾害下无人机运输与通信协同优化.docx` | Word 版 |
+| `提交/论文/论文.pdf` | **论文 PDF**：A4，26 页，pandoc→xelatex 直出，零 HTML 标签泄漏 |
+| `paper/export/山区洪涝灾害下无人机运输与通信协同优化.docx` | Word 版（图片内嵌，Unicode 数学） |
+| `paper/export/pandoc/` | Word 原生公式 DOCX + LaTeX 源（`论文.tex`） |
 | `paper/figs/fig1..fig7.png` | 7 张图表 |
 
-> PDF 由 Edge 根据打印就绪 HTML 导出；A4、45 页。正文文本可提取，末尾附有七张图表。
+> 导出命令：`code/export_pandoc.py`（PDF/DOCX/LaTeX）+ `code/export_docx.py`（DOCX）。
+> PDF 由 `tests/check_export.py` 校验：A4、零 HTML 标签泄漏、关键符号齐备、7 图内嵌。
 
 ### 2.3 程序
 
@@ -75,7 +66,9 @@ code/
   q2_merge_accounting.py  G-B 代价核算（Q2 多服务区合并）
   q2_scale_probe.py       求解器规模探针（CP-SAT 实测）
   q3_diagnose.py          问题三通信覆盖诊断
-  export_paper.py         论文导出（Markdown→HTML→DOCX）
+  export_pandoc.py        论文导出（Markdown→PDF/DOCX/LaTeX，xelatex 直出）
+  export_docx.py          论文导出（DOCX，图片内嵌）
+  export_paper.py         （已弃用）Markdown→HTML 转换器，仅保留 latex_to_unicode 供 DOCX
 run_all.sh                一键复现
 ```
 
@@ -128,7 +121,7 @@ spec/
 | 全局验证 | `.venv/bin/python tests/run_global_verify.py` | ✅ **13/13** |
 | 账本结算 | `.venv/bin/python tests/run_settlement.py` | ✅ **7/7** |
 | 论文-结果交叉对表 | `.venv/bin/python tests/check_consistency.py` | ✅ **66/66** |
-| 导出结构验证 | `.venv/bin/python tests/check_export.py` | ✅ **31/31** |
+| 导出结构验证 | `.venv/bin/python tests/check_export.py` | ✅ **28/28** |
 
 ### 原「不可判定项」GR-1 已消除
 
@@ -186,7 +179,7 @@ A 类假设 **3** 条、不可判定项 **0** 个（P-22 已消除）、λ = 0.0
 
 ## 六、需要你注意的三件事
 
-1. **论文 PDF 已生成**，位置为 `提交/论文/论文.pdf`；源稿为 `paper/main.md`，打印版 HTML 为 `paper/export/main.html`。
+1. **论文 PDF 已生成**，位置为 `提交/论文/论文.pdf`；源稿为 `paper/main.md`，由 pandoc 直接读 md 经 xelatex 编译（不经过 HTML）。
 
 2. **论文 §2.2 的 3 条运行前提（C-1/C-2/C-3）是我做的裁决**，尤其 **C-2「K 个任务组并行执行」**
    ——若应为串行，Q4 的资源需求会显著下降。
@@ -215,5 +208,5 @@ A 类假设 **3** 条、不可判定项 **0** 个（P-22 已消除）、λ = 0.0
 └── paper/                      论文与图表
     ├── main.md
     ├── figs/                   fig1..fig7.png
-    └── export/                 main.html + *.docx
+    └── export/                 论文.pdf + *.docx + pandoc/
 ```
