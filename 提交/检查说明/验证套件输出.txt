@@ -452,16 +452,16 @@ E-5      OK                                                   表头跨页重复
 E-6      OK                                                   中文字体声明（宋体系） 
 E-7      OK                                                   公式样式存在（.math） 
 E-8      OK                                                   打印色彩保真 
-E-9      OK                                                   章节数 ≥ 8 12 个 h2
-E-10     OK                                                   表格数 ≥ 20 34 个表格
-E-11     OK                                                   总文本块数（段落+列表项+表格单元）≥ 300 段落 174 + 列表 35 + 单元 674 = 883
+E-9      OK                                                   章节数 ≥ 8 13 个 h2
+E-10     OK                                                   表格数 ≥ 20 36 个表格
+E-11     OK                                                   总文本块数（段落+列表项+表格单元）≥ 300 段落 182 + 列表 50 + 单元 715 = 947
 E-12     OK                                                   全部图被 HTML 引用 引用 7/7
 E-13     OK                                                   图表标题（figcaption）齐备 7 个
 E-16     OK                                                   正文含图片嵌入（![] 形式）≥ 5 张 正文嵌入 5 张
 E-17     OK                                                   正文含「图n」文字引用，编号连续 1..N 正文引用图号 [1, 2, 3, 4, 5]
 E-18     OK                                                   DOCX 内嵌图片数 == 全部图数 内嵌 7 张（图总数 7）
 E-14     OK                                                   公式中无未转换的 LaTeX 命令残留 
-E-19     OK                                                   DOCX 可解析（document.xml 文本量充足） 32023 字符
+E-19     OK                                                   DOCX 可解析（document.xml 文本量充足） 36245 字符
 E-20.摘要  OK                                                   DOCX 含章节「摘要」 
 E-20.问题重述 OK                                                   DOCX 含章节「问题重述」 
 E-20.模型建立与求解 OK                                                   DOCX 含章节「模型建立与求解」 
@@ -472,9 +472,9 @@ E-20.参考文献 OK                                                   DOCX 含�
 P-0      OK                                                   pandoc 导出目录存在 E:\project\policy__text_analysis\math_mode\paper\export\pandoc
 P-1      OK                                                   HTML 含 MathJax（公式原生渲染） 
 P-2      OK                                                   HTML 内嵌图片数 == 图总数 内嵌 7 / 图 7
-P-3      OK                                                   HTML 表格数 >= 30 34 个
+P-3      OK                                                   HTML 表格数 >= 30 36 个
 P-4      OK                                                   DOCX 内嵌图片数 == 图总数 内嵌 7 / 图 7
-P-5      OK                                                   DOCX 含 Word 原生公式（OMML）>= 100 个 234 个（非纯文本公式）
+P-5      OK                                                   DOCX 含 Word 原生公式（OMML）>= 100 个 241 个（非纯文本公式）
 P-6      OK                                                   LaTeX 源存在且含图片引用 includegraphics 7 处
 P-7      OK                                                   LaTeX 源含 CJK 字体设置 
 

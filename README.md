@@ -43,19 +43,20 @@ bash run_all.sh
 | 自实现 DOCX | `code/export_docx.py` | `*.docx` | Unicode 化 | 7/7 内嵌 |
 
 > pandoc 由 pip 包 `pypandoc_binary` 提供（自包含二进制，无需系统安装）。
-> 本机**无法安装 LaTeX 引擎**（conda 因 TOS 缓存权限失败、tectonic 不在 PyPI、无 texlive），
-> 故 PDF 需在有 TeX 环境的机器上对 `paper/export/pandoc/论文.tex` 执行 `xelatex` 获得。
+> 论文 PDF 由 Edge 无头模式按打印就绪 HTML 导出（A4、45 页），不依赖 LaTeX；
+> 本机已安装 TeX Live，`paper/export/pandoc/论文.tex` 亦随包提供（可用 `xelatex` 编译），
+> 但因其会丢失 ≤ ↔ ρ ⇒ ✅ ❌ ①②③ 等 Unicode 符号与加粗中文，**成品 PDF 一律以 Edge 版为准**。
 
 
 | 文件 | 说明 |
 |---|---|
-| `paper/main.md` | 论文源文件（Markdown，八章 + 3 个附录） |
-| `提交/论文/论文.pdf` | **论文 PDF**：A4，40 页，包含正文与 7 张图表 |
+| `paper/main.md` | 论文源文件（Markdown，九章 + 3 个附录） |
+| `提交/论文/论文.pdf` | **论文 PDF**：A4，45 页，包含正文与 7 张图表 |
 | `paper/export/main.html` | 打印就绪 HTML 源，可在浏览器中打印为 PDF |
 | `paper/export/山区洪涝灾害下无人机运输与通信协同优化.docx` | Word 版 |
 | `paper/figs/fig1..fig7.png` | 7 张图表 |
 
-> PDF 由 Edge 根据打印就绪 HTML 导出；A4、40 页。正文文本可提取，末尾附有七张图表。
+> PDF 由 Edge 根据打印就绪 HTML 导出；A4、45 页。正文文本可提取，末尾附有七张图表。
 
 ### 2.3 程序
 
@@ -213,6 +214,6 @@ A 类假设 **3** 条、不可判定项 **0** 个（P-22 已消除）、λ = 0.0
 ├── out/                        结果输出（6 张提交表 + 分析表）
 └── paper/                      论文与图表
     ├── main.md
-    ├── figs/                   fig1..fig5.png
+    ├── figs/                   fig1..fig7.png
     └── export/                 main.html + *.docx
 ```

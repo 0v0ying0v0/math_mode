@@ -358,7 +358,7 @@ def main():
        '100/100,0.44%', '8/1800=%.2f%%;B8=%s' % (100.0 * 8 / 1800,
                                                   'Y' if re.search(r'100/100', b8) else 'N'))
     # 图引用一致性（评审 T3-15）
-    body = md[:md.index('## 八、参考文献')] if '## 八、参考文献' in md else md
+    body = md[:md.index('## 九、参考文献')] if '## 九、参考文献' in md else md
     n_inline = len(re.findall(r'!\[[^\]]*\]\(figs/', body))
     ck('X-6.1', '正文嵌入图片 ≥ 5 张', n_inline >= 5, 5, n_inline)
     ck('X-6.2', '正文「图n」引用编号覆盖 1..N',

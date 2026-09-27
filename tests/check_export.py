@@ -103,7 +103,7 @@ def main():
     # E-16（新增，修复治理盲区）：正文 MD 中必须出现「图n」引用，且引用数 >= 正文所配图数
     md = open(os.path.join(ROOT, 'paper', 'main.md'), encoding='utf-8').read()
     # 正文 = 参考文献章之前
-    body = md[:md.index('## 八、参考文献')] if '## 八、参考文献' in md else md
+    body = md[:md.index('## 九、参考文献')] if '## 九、参考文献' in md else md
     n_inline = len(re.findall(r'!\[[^\]]*\]\(figs/', body))
     n_ref = len(set(re.findall(r'\*\*图\s*(\d+)', body)))
     ck('E-16', '正文含图片嵌入（![] 形式）≥ 5 张', n_inline >= 5,
